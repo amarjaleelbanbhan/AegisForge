@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a defect in AegisForge
+title: "bug: <short description>"
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. **Do not report security vulnerabilities here** — follow
+        [SECURITY.md](../blob/main/SECURITY.md) for private disclosure instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps (and, ideally, a minimal code sample) to reproduce.
+      placeholder: |
+        1. ...
+        2. ...
+        3. see error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AegisForge version / commit
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version & OS
+      placeholder: "e.g. 3.12 on Ubuntu 24.04"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / traceback
+      render: shell
