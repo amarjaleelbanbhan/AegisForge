@@ -1,0 +1,137 @@
+# AegisForge — project & tooling configuration.
+# Build backend: hatchling. Dependency/workflow manager: uv.
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aegisforge"
+version = "0.1.0.dev0"
+description = "An autonomous AI software security engineer that understands, verifies, fixes, and secures software."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "AegisForge Contributors" }]
+keywords = [
+  "security",
+  "sast",
+  "llm",
+  "agents",
+  "vulnerability",
+  "code-analysis",
+  "sarif",
+  "vex",
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+# Phase 1 keeps the runtime surface intentionally minimal: the domain core
+# depends only on pydantic. Heavier subsystems (tree-sitter, langgraph,
+# scanners) arrive behind optional extras in later phases so the core stays
+# installable and fast to import.
+dependencies = [
+  "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "hypothesis>=6.100",
+]
+
+[project.urls]
+Homepage = "https://github.com/aegisforge/aegisforge"
+Documentation = "https://github.com/aegisforge/aegisforge/tree/main/docs"
+Repository = "https://github.com/aegisforge/aegisforge"
+Issues = "https://github.com/aegisforge/aegisforge/issues"
+Changelog = "https://github.com/aegisforge/aegisforge/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aegisforge"]
+
+# ---------------------------------------------------------------------------
+# Ruff — linter + formatter.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "N",        # pep8-naming
+  "UP",       # pyupgrade
+  "B",        # flake8-bugbear
+  "C4",       # comprehensions
+  "SIM",      # flake8-simplify
+  "TID",      # tidy imports
+  "RUF",      # ruff-specific
+  "S",        # flake8-bandit (security)
+  "PL",       # pylint
+]
+ignore = [
+  "PLR0913",  # many arguments — common for rich domain constructors
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "PLR2004"]  # asserts and magic values are fine in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["aegisforge", "tests"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict typing on the domain core.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------------------
+# pytest.
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+markers = [
+  "unit: fast, isolated unit tests",
+  "integration: cross-component integration tests",
+  "security: adversarial / security-focused tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["aegisforge"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
