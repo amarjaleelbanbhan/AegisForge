@@ -111,6 +111,19 @@ skip_covered = true
 [tool.importlinter]
 root_packages = ["aegisforge"]
 
+# The overarching dependency direction (MPS §8.2: "dependencies point inward").
+# As adapters/application/interface packages land in later phases, add their
+# top-level modules above "aegisforge.plugins" here, highest (most dependent)
+# first.
+[[tool.importlinter.contracts]]
+name = "Layered dependency direction (core)"
+type = "layers"
+layers = [
+  "aegisforge.plugins",
+  "aegisforge.ports",
+  "aegisforge.domain",
+]
+
 [[tool.importlinter.contracts]]
 name = "Domain core stays pure"
 type = "forbidden"
