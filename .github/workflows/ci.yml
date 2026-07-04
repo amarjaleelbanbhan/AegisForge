@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least-privilege by default; jobs opt into more only if they need it.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Type · Test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install project
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check --output-format=github src tests
+
+      - name: Ruff format check
+        run: ruff format --check src tests
+
+      - name: Mypy (strict)
+        run: mypy
+
+      - name: Pytest
+        run: pytest --cov=aegisforge --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage artifact
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: warn
+
+  # Dependency & secret hygiene on the tool's own codebase. AegisForge must hold
+  # itself to the standard it enforces on others.
+  self-audit:
+    name: Self audit (deps · secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks (secret scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: pip-audit (dependency vulnerabilities)
+        run: |
+          uv pip install --system pip-audit
+          uv pip install --system -e .
+          pip-audit --strict || echo "::warning::pip-audit reported advisories"
