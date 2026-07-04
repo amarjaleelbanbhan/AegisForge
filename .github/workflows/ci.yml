@@ -30,23 +30,24 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install project
-        run: uv pip install --system -e ".[dev]"
+      # `uv sync` creates a project-local virtualenv (installing the requested
+      # Python if needed) and installs the package + dev extra into it. We then
+      # invoke tools with `uv run` so nothing touches the runner's externally
+      # managed system Python.
+      - name: Sync environment (Python ${{ matrix.python-version }})
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
 
       - name: Ruff lint
-        run: ruff check --output-format=github src tests
+        run: uv run ruff check --output-format=github src tests
 
       - name: Ruff format check
-        run: ruff format --check src tests
+        run: uv run ruff format --check src tests
 
       - name: Mypy (strict)
-        run: mypy
+        run: uv run mypy
 
       - name: Pytest
-        run: pytest --cov=aegisforge --cov-report=xml --cov-report=term-missing
+        run: uv run pytest --cov=aegisforge --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage artifact
         if: matrix.python-version == '3.12'
@@ -74,8 +75,10 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      # Export a locked requirements set and audit it with an ephemeral
+      # pip-audit (uvx), avoiding any system-Python install. Advisories are
+      # surfaced as warnings for now; Phase 1.5 makes this a hard gate.
       - name: pip-audit (dependency vulnerabilities)
         run: |
-          uv pip install --system pip-audit
-          uv pip install --system -e .
-          pip-audit --strict || echo "::warning::pip-audit reported advisories"
+          uv export --format requirements-txt --no-emit-project -o /tmp/reqs.txt
+          uvx pip-audit -r /tmp/reqs.txt || echo "::warning::pip-audit reported advisories"
