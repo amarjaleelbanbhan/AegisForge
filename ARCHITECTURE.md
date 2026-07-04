@@ -1,12 +1,18 @@
 # AegisForge Architecture
 
-This document describes the architecture of AegisForge, the reasoning behind the major
-decisions, and how the pieces fit together. It is the canonical reference for contributors
-and the basis of the research write-up.
+> **⚠️ This document is now a summary.** The single source of truth for architecture is the
+> **[Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)** (RFC). Once the MPS is
+> approved, the architecture is **frozen** and changes only via
+> [ADRs](docs/adr/README.md). Where this summary and the MPS differ, the MPS wins. See also the
+> [Phase-1 technical review](docs/reviews/2026-07-05-phase-1-architecture-review.md).
+
+This document gives a fast orientation to the architecture, the reasoning behind the major
+decisions, and how the pieces fit together. For normative contracts (ports, domain model,
+security, data/DB design, APIs, evaluation), read the MPS.
 
 > **Audience:** engineers extending AegisForge, and reviewers evaluating its design.
-> **Status:** living document. Phase 1 subsystems are implemented; later phases are
-> specified here as contracts before they are built.
+> **Status:** living summary. Phase 1 subsystems are implemented; later phases are
+> specified as contracts in the MPS before they are built.
 
 ---
 
