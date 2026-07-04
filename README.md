@@ -16,6 +16,11 @@
 
 > **Status: Pre-alpha (Phase 1).** The domain core and engineering foundation are in place.
 > AegisForge is being built one milestone at a time — see the [Roadmap](ROADMAP.md).
+>
+> 📐 **Single source of truth:** the [Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)
+> (RFC, pending approval). After approval the architecture is frozen and evolves only via
+> [ADRs](docs/adr/README.md). See the [Phase-1 review](docs/reviews/2026-07-05-phase-1-architecture-review.md)
+> and the [Evaluation Framework](docs/benchmark/evaluation-framework.md).
 
 ## Why AegisForge
 
