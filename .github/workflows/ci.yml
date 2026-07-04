@@ -30,24 +30,30 @@ jobs:
         with:
           enable-cache: true
 
-      # `uv sync` creates a project-local virtualenv (installing the requested
-      # Python if needed) and installs the package + dev extra into it. We then
-      # invoke tools with `uv run` so nothing touches the runner's externally
+      # `uv sync` only installs packages the (virtual) root project depends
+      # on; since the root is a pure workspace manifest (ADR-0005), every
+      # member must be synced explicitly with --all-packages. Tools are then
+      # invoked with `uv run` so nothing touches the runner's externally
       # managed system Python.
-      - name: Sync environment (Python ${{ matrix.python-version }})
-        run: uv sync --extra dev --python ${{ matrix.python-version }}
+      - name: Sync workspace (Python ${{ matrix.python-version }})
+        run: uv sync --all-packages --extra dev --python ${{ matrix.python-version }}
 
       - name: Ruff lint
-        run: uv run ruff check --output-format=github src tests
+        run: uv run ruff check --output-format=github packages
 
       - name: Ruff format check
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check packages
 
       - name: Mypy (strict)
         run: uv run mypy
 
-      - name: Pytest
-        run: uv run pytest --cov=aegisforge --cov-report=xml --cov-report=term-missing
+      - name: Import boundaries (hexagonal architecture)
+        run: uv run lint-imports
+
+      - name: Pytest (with coverage gate)
+        run: |
+          uv run pytest --cov=aegisforge --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=100
 
       - name: Upload coverage artifact
         if: matrix.python-version == '3.12'
@@ -57,10 +63,26 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-  # Dependency & secret hygiene on the tool's own codebase. AegisForge must hold
-  # itself to the standard it enforces on others.
+  # Dogfooding: AegisForge scans itself. Bandit stands in for AegisForge's own
+  # scanner adapters (Phase 3); this job is replaced once aegisforge-scanners
+  # exists, at which point `aegis scan .` runs here instead.
+  dogfood:
+    name: Dogfood security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Bandit (self-scan)
+        run: uvx bandit -r packages/*/src -x "*/tests/*"
+
+  # Dependency & secret hygiene, and a software bill of materials, on the
+  # tool's own codebase. AegisForge must hold itself to the standard it
+  # enforces on others.
   self-audit:
-    name: Self audit (deps · secrets)
+    name: Self audit (deps · secrets · SBOM)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,10 +97,27 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      # Export a locked requirements set and audit it with an ephemeral
-      # pip-audit (uvx), avoiding any system-Python install. Advisories are
-      # surfaced as warnings for now; Phase 1.5 makes this a hard gate.
-      - name: pip-audit (dependency vulnerabilities)
+      # Export a locked, third-party-only requirements set (workspace members
+      # are local editable installs with no CVE surface of their own) and
+      # audit it with an ephemeral pip-audit, avoiding any system-Python
+      # install.
+      - name: Export locked third-party requirements
         run: |
-          uv export --format requirements-txt --no-emit-project -o /tmp/reqs.txt
-          uvx pip-audit -r /tmp/reqs.txt || echo "::warning::pip-audit reported advisories"
+          uv export --all-packages --format requirements-txt --no-emit-project \
+            -o /tmp/requirements.txt
+          grep -v '^-e ' /tmp/requirements.txt > /tmp/requirements.third-party.txt
+
+      - name: pip-audit (dependency vulnerabilities)
+        run: uvx pip-audit -r /tmp/requirements.third-party.txt || echo "::warning::pip-audit reported advisories"
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          uvx --from cyclonedx-bom cyclonedx-py requirements \
+            /tmp/requirements.third-party.txt --of JSON -o sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          if-no-files-found: warn
