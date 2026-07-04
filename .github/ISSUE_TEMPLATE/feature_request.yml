@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a capability or enhancement
+title: "feat: <short description>"
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve? Who benefits?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the capability. Note any impact on the architecture or ports.
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Related roadmap phase
+      description: See ROADMAP.md
+      options:
+        - "Phase 2 — Code intelligence"
+        - "Phase 3 — Scanners"
+        - "Phase 4 — Agent framework"
+        - "Phase 5 — Threat reasoning"
+        - "Phase 6 — Verification"
+        - "Phase 7 — Repair"
+        - "Phase 8 — Delivery surfaces"
+        - "Phase 9 — Benchmarks"
+        - "Other / unsure"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
