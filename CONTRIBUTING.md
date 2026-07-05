@@ -17,30 +17,40 @@ Look for issues labeled **`good first issue`** to get started.
 
 ## Development setup
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). This is a **uv workspace**
+([ADR-0005](docs/adr/0005-uv-workspace-monorepo.md)) — the root `pyproject.toml` is a virtual
+manifest, so packages must be synced explicitly:
 
 ```bash
-uv venv
-uv pip install -e ".[dev]"
+uv sync --all-packages --extra dev
 ```
 
 Run the full quality gate locally before pushing — this is exactly what CI runs:
 
 ```bash
-uv run ruff check src tests          # lint
-uv run ruff format src tests         # format
-uv run mypy                          # strict type check
-uv run pytest --cov=aegisforge       # tests + coverage
+uv run ruff check packages                                  # lint
+uv run ruff format packages                                 # format
+uv run mypy                                                  # strict type check
+uv run lint-imports                                          # hexagonal boundaries
+uv run pytest --cov=aegisforge --cov-fail-under=100          # tests + coverage gate
 ```
 
 ## Standards
 
 - **Architecture:** respect the hexagonal boundaries — the domain core (`aegisforge.domain`)
-  must stay pure (no I/O, no framework or adapter imports). New integrations are adapters
-  behind ports. See [ARCHITECTURE.md](ARCHITECTURE.md).
+  and the port catalog (`aegisforge.ports`) must stay pure (no I/O, no adapter imports); the
+  plugin registry (`aegisforge.plugins`) never imports a concrete adapter. New integrations are
+  adapters implementing a port, registered via `PluginGroup` — see
+  [ARCHITECTURE.md](ARCHITECTURE.md). `import-linter` enforces this mechanically in CI; a
+  contract failure is a build failure, not a suggestion.
+- **New packages:** a new subsystem (a scanner adapter, a language provider, ...) is a new
+  member under `packages/<name>/` with its own `pyproject.toml`, added to the workspace by
+  virtue of `[tool.uv.workspace] members = ["packages/*"]` — no root config changes needed
+  beyond extending shared lint/type/test paths if the package needs its own.
 - **Types:** all code is fully typed; `mypy --strict` must pass.
 - **Tests:** every change ships with tests. The domain core is held at 100% coverage; use
-  `hypothesis` for invariants where it fits.
+  `hypothesis` for invariants where it fits. New ports ship a conformance test (a minimal
+  in-memory fake proving the `Protocol` is satisfiable).
 - **Security:** treat analyzed code as hostile input. Never add a path that lets a model or
   untrusted content bypass verification. Never commit secrets.
 - **Style:** Ruff governs lint and formatting. Keep functions small and honest; match the

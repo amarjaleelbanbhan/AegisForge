@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/va-h/devcontainers-features/uv:1": {}
   },
-  "postCreateCommand": "uv venv && uv pip install -e '.[dev]'",
+  "postCreateCommand": "uv sync --all-packages --extra dev",
   "customizations": {
     "vscode": {
       "extensions": [

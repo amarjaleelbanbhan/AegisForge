@@ -27,11 +27,16 @@ Repository, tooling, CI, and the pure domain core.
 - ✅ CI (lint · format · type · test matrix) + self-audit (secrets, deps).
 - ✅ Governance docs, issue/PR templates, Dockerfile, devcontainer.
 
-## Phase 1.5 — Workspace & contracts ⏳ *(new; from the MPS review)*
-Restructure before the codebase ossifies.
-- uv workspace monorepo + `aegisforge.*` namespace ([ADR-0005](docs/adr/0005-uv-workspace-monorepo.md)).
-- Port `Protocol`s + plugin registry in `aegisforge-core`; `import-linter` enforcing inward deps.
-- CI hardening: `uv.lock`, coverage gate, dogfood scan, SBOM, release provenance.
+## Phase 1.5 — Workspace & contracts ✅ *(from the MPS review)*
+Restructured before the codebase ossified.
+- ✅ uv workspace monorepo + `aegisforge.*` namespace package
+  ([ADR-0005](docs/adr/0005-uv-workspace-monorepo.md)); `aegisforge-core` is the first member.
+- ✅ Full port catalog as `typing.Protocol` contracts (`aegisforge.ports`) with conformance
+  tests, and the entry-point plugin registry (`aegisforge.plugins`).
+- ✅ `import-linter` contracts mechanically enforcing the hexagonal dependency direction.
+- ✅ CI hardened for the workspace: `uv.lock` committed, 100% coverage gate, a dogfood security
+  scan, and a CycloneDX SBOM artifact. *(Signed release provenance is deferred to Phase 10,
+  where release automation is specified — MPS §27.)*
 
 ## Phase 2 — Code intelligence ⏳
 Language-agnostic Code Property Graph on tree-sitter (AST → CFG → DFG → call graph), a query

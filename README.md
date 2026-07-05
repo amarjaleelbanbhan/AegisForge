@@ -14,13 +14,14 @@
 
 ---
 
-> **Status: Pre-alpha (Phase 1).** The domain core and engineering foundation are in place.
-> AegisForge is being built one milestone at a time — see the [Roadmap](ROADMAP.md).
+> **Status: Pre-alpha (Phase 1.5).** The domain core, port catalog, plugin registry, and a
+> multi-package workspace are in place. AegisForge is being built one milestone at a time —
+> see the [Roadmap](ROADMAP.md).
 >
 > 📐 **Single source of truth:** the [Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)
-> (RFC, pending approval). After approval the architecture is frozen and evolves only via
-> [ADRs](docs/adr/README.md). See the [Phase-1 review](docs/reviews/2026-07-05-phase-1-architecture-review.md)
-> and the [Evaluation Framework](docs/benchmark/evaluation-framework.md).
+> is **approved and frozen**. Architecture changes only via [ADRs](docs/adr/README.md). See the
+> [Phase-1 review](docs/reviews/2026-07-05-phase-1-architecture-review.md) and the
+> [Evaluation Framework](docs/benchmark/evaluation-framework.md).
 
 ## Why AegisForge
 
@@ -66,29 +67,37 @@ AegisForge uses a hexagonal (ports-and-adapters) design with an in-process, insp
 agent orchestrator. Everything that touches the outside world is a pluggable adapter.
 
 ```
-Interfaces:   CLI · REST API · GitHub App · VS Code extension
+Interfaces:   CLI · REST API · GitHub App · VS Code extension           (packages/aegisforge-{cli,server,sdk})
 Application:  Orchestrator → Planner · Scanner · Verifier · Repair · Reviewer · Memory
 Domain core:  Finding · Evidence · Verification Ladder · Patch · Provenance   ← pure, no I/O
-Ports:        CodeGraph · Scanner · LLM · Sandbox · VCS · Storage · Telemetry
+Ports:        CodeGraph · LanguageProvider · Scanner · LLM · Sandbox · VCS
+              · Storage · Telemetry · Orchestrator · Reporter   (aegisforge.ports, typing.Protocol)
+Plugins:      entry-point discovery — a new adapter needs zero core changes (aegisforge.plugins)
 Adapters:     tree-sitter CPG · Semgrep/Bandit/CodeQL · Anthropic/OpenAI/Ollama · Docker …
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and rationale.
+`aegisforge-core` (this repo's only populated package so far) ships the domain model, the full
+port catalog, and the plugin registry. Every other row is an independently versioned package
+under [`packages/`](packages/), added as its phase lands — see [ARCHITECTURE.md](ARCHITECTURE.md)
+and [ADR-0005](docs/adr/0005-uv-workspace-monorepo.md).
 
 ## Quickstart (development)
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). This is a **uv workspace**
+(ADR-0005): the root `pyproject.toml` is a virtual manifest, so workspace members must be
+synced explicitly with `--all-packages`.
 
 ```bash
-git clone https://github.com/aegisforge/aegisforge
-cd aegisforge
-uv venv && uv pip install -e ".[dev]"
+git clone https://github.com/amarjaleelbanbhan/AegisForge
+cd AegisForge
+uv sync --all-packages --extra dev
 
 # Run the quality gate exactly as CI does
-uv run ruff check src tests
-uv run ruff format --check src tests
+uv run ruff check packages
+uv run ruff format --check packages
 uv run mypy
-uv run pytest --cov=aegisforge
+uv run lint-imports              # hexagonal dependency-direction check
+uv run pytest --cov=aegisforge --cov-fail-under=100
 ```
 
 The domain core is usable today:
@@ -122,8 +131,9 @@ print(report.recommended_state, report.vex_status, round(report.confidence, 2))
 
 ## Roadmap
 
-AegisForge is built in strict, shippable phases. Phase 1 (this milestone) delivers the
-foundation and the tested domain core. See [ROADMAP.md](ROADMAP.md) for all ten phases.
+AegisForge is built in strict, shippable phases. Phase 1 delivered the foundation and the
+tested domain core; Phase 1.5 (this milestone) delivers the workspace restructure, the port
+catalog, the plugin registry, and hardened CI. See [ROADMAP.md](ROADMAP.md) for every phase.
 
 ## Contributing
 
