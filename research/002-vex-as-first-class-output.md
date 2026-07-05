@@ -17,11 +17,11 @@ precisely the standardized form of the question the Verification Ladder answers.
 attached PoC) map directly onto ladder outcomes.
 
 Emitting VEX is a differentiator: mainstream AI code reviewers lead with findings, not with
-exploitability verdicts. AegisForge can make VEX a primary, first-class output.
+exploitability verdicts. CortexWard can make VEX a primary, first-class output.
 
 ## Approach
 
-- Derive VEX status from the assessment (`aegisforge.domain.verification` already computes
+- Derive VEX status from the assessment (`cortexward.domain.verification` already computes
   `VexStatus`): refutation → `not_affected`; PoC/differential at high confidence → `affected`;
   validated patch → `fixed`; otherwise `under_investigation`.
 - Emit CycloneDX-VEX and CSAF-VEX documents alongside SARIF and a CycloneDX SBOM.
@@ -33,7 +33,7 @@ exploitability verdicts. AegisForge can make VEX a primary, first-class output.
 - **Actionability study.** Do VEX verdicts reduce triage time vs. raw findings? (Human study.)
 - **Interoperability.** Validate emitted documents against CycloneDX/CSAF schemas; round-trip
   through common consumers.
-- **Agreement.** Compare AegisForge `not_affected` verdicts against expert judgments and
+- **Agreement.** Compare CortexWard `not_affected` verdicts against expert judgments and
   against reachability ground truth.
 
 ## Open questions
@@ -45,4 +45,4 @@ exploitability verdicts. AegisForge can make VEX a primary, first-class output.
 ## Related
 
 - Builds on: [001 — The Verification Ladder](001-verification-ladder.md)
-- Schema: `VexStatus` in [`aegisforge/domain/enums.py`](../src/aegisforge/domain/enums.py)
+- Schema: `VexStatus` in [`cortexward/domain/enums.py`](../src/cortexward/domain/enums.py)

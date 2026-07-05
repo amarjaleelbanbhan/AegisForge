@@ -1,4 +1,4 @@
-# AegisForge — Evaluation Framework
+# CortexWard — Evaluation Framework
 
 | | |
 |---|---|
@@ -6,9 +6,9 @@
 | **Status** | Proposed (RFC) |
 | **Principle** | **Benchmark first.** The harness is built before advanced agents; every feature must move a metric. |
 
-> This document specifies *how AegisForge is measured*. It is normative: it defines the metrics,
+> This document specifies *how CortexWard is measured*. It is normative: it defines the metrics,
 > the dataset strategy, the run-provenance record, the statistical protocol, and the harness
-> contract. Implemented in the `aegisforge-eval` package (roadmap Phase 3.5).
+> contract. Implemented in the `cortexward-eval` package (roadmap Phase 3.5).
 
 ---
 
@@ -63,7 +63,7 @@ Comparisons are meaningless without baselines. The harness supports pluggable ba
 - **Static-only**: Semgrep / Bandit / CodeQL raw output (no verification).
 - **LLM-only**: a single-prompt LLM auditor (no ladder, no CPG grounding).
 - **Prior AI reviewers** where runnable (e.g. VulnHuntr-style), best-effort.
-- **AegisForge ablations**: ladder rung disabled, agent disabled, CPG grounding disabled.
+- **CortexWard ablations**: ladder rung disabled, agent disabled, CPG grounding disabled.
 
 ## 4. Dataset strategy
 
@@ -98,10 +98,10 @@ reproduce it:
 ```jsonc
 {
   "run_id": "run_…",
-  "git_sha": "…",                 // exact AegisForge commit
+  "git_sha": "…",                 // exact CortexWard commit
   "config_hash": "…",             // full resolved config
   "calibration_profile": "default@1",
-  "dataset": {"name": "aegis-bench", "version": "2026.07"},
+  "dataset": {"name": "ward-bench", "version": "2026.07"},
   "models": [{"task": "reasoning", "provider": "…", "model": "…", "version": "…",
               "training_cutoff": "…"}],
   "prompt_versions": {"detector": "v3", "repair": "v2"},
@@ -129,12 +129,12 @@ Manifests are immutable once written and are the unit of comparison across runs.
 
 ## 7. Harness contract
 
-`aegisforge-eval` exposes:
+`cortexward-eval` exposes:
 
 ```
-aegis bench run <suite> --dataset <version> --config <profile> [--baselines static,llm]
-aegis bench compare <run-a> <run-b>
-aegis bench report <run-id> --format md,json
+ward bench run <suite> --dataset <version> --config <profile> [--baselines static,llm]
+ward bench compare <run-a> <run-b>
+ward bench report <run-id> --format md,json
 ```
 
 - One command reproduces a published result from a `RunManifest`.

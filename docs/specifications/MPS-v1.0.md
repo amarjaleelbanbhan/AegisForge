@@ -1,4 +1,4 @@
-# AegisForge — Master Project Specification (MPS)
+# CortexWard — Master Project Specification (MPS)
 
 | | |
 |---|---|
@@ -9,7 +9,7 @@
 | **Amendment policy** | Once approved, this document is **frozen**. Changes are made only through numbered [ADRs](../adr/) that amend a specific section and bump the MPS patch/minor version. |
 | **Companion docs** | [Phase-1 Review](../reviews/2026-07-05-phase-1-architecture-review.md) · [Evaluation Framework](../benchmark/evaluation-framework.md) · [ADR index](../adr/README.md) |
 
-> This is the single source of truth for AegisForge. It is written as an RFC: normative
+> This is the single source of truth for CortexWard. It is written as an RFC: normative
 > requirements use **MUST / SHOULD / MAY** ([RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)).
 > Where a subsystem is not yet implemented, this document defines its *contract* so that
 > implementation cannot drift from the design.
@@ -54,7 +54,7 @@
 
 ## 1. Vision
 
-Within 3–5 years, AegisForge is the **default open-source autonomous security engineer**: the
+Within 3–5 years, CortexWard is the **default open-source autonomous security engineer**: the
 system teams reach for to understand, verify, fix, and continuously secure software — the way
 they reach for a compiler or a test runner. It is trusted because it never asserts what it
 cannot substantiate, and adopted because it is open, extensible, and measurably effective.
@@ -94,9 +94,9 @@ Give every developer an autonomous AppSec teammate that:
 ### Non-goals (v1.x)
 - **DAST of running production systems** beyond the controlled sandbox PoC step.
 - **Binary-only / closed-source analysis**, decompilation, malware analysis.
-- **Autonomous merging** of patches (AegisForge proposes; humans merge).
+- **Autonomous merging** of patches (CortexWard proposes; humans merge).
 - **A hosted SaaS** (the architecture must *permit* one; the project does not *operate* one in v1).
-- **Replacing** CodeQL/Semgrep — AegisForge *orchestrates and verifies*, and integrates them.
+- **Replacing** CodeQL/Semgrep — CortexWard *orchestrates and verifies*, and integrates them.
 - **Model training / fine-tuning** as a core dependency (memory is retrieval, not weights).
 
 ## 5. Personas & use cases
@@ -166,7 +166,7 @@ shared conformance suite. Adding a language MUST NOT require core changes.
 
 ## 8. System architecture
 
-AegisForge is **hexagonal (ports & adapters)** with a pure domain core and an **in-process,
+CortexWard is **hexagonal (ports & adapters)** with a pure domain core and an **in-process,
 inspectable orchestrator**. Distribution/scale-out is a later *adapter*, not a founding
 assumption.
 
@@ -178,7 +178,7 @@ flowchart LR
   Sec[Security engineer] --> API[REST API]
   CI[CI / GitHub App] --> API
   IDE[VS Code / MCP client] --> MCP[MCP Server]
-  CLI & API & MCP --> Core[(AegisForge Core Engine)]
+  CLI & API & MCP --> Core[(CortexWard Core Engine)]
   Core --> LLMs[LLM providers\nAnthropic/OpenAI/Gemini/Ollama/vLLM]
   Core --> VCS[VCS hosts\nGitHub/GitLab/Bitbucket/ADO]
   Core --> Sbx[Sandbox\nDocker/gVisor/Firecracker]
@@ -192,11 +192,11 @@ flowchart LR
 │ Delivery surfaces   CLI · REST API · Python SDK · MCP Server · GH Action/App │
 │                     · VS Code extension            (all call the same core)   │
 ├───────────────────────────────────────────────────────────────────────────┤
-│ Application (aegisforge-orchestrator)                                        │
+│ Application (cortexward-orchestrator)                                        │
 │   Orchestrator (state machine)  →  Planner · Scanner · Verifier · Repair ·   │
 │   Reviewer · Coordinator · Memory     (agents operate on a typed RunState)   │
 ├───────────────────────────────────────────────────────────────────────────┤
-│ Domain core (aegisforge-core)   Finding · Evidence · Ladder · Patch ·        │
+│ Domain core (cortexward-core)   Finding · Evidence · Ladder · Patch ·        │
 │   Repository · ScanRun · RunManifest · Detector · TaintFlow · Assessment     │
 │   + PORTS (Protocols): CodeGraph · Scanner · LLM · Sandbox · VCS · Storage ·  │
 │     Telemetry · LanguageProvider · Orchestrator                              │
@@ -208,22 +208,22 @@ flowchart LR
         dependency direction: surfaces → application → core ← adapters
 ```
 
-**Rule (enforced in CI):** `aegisforge-core` imports **nothing** from adapters, application, or
+**Rule (enforced in CI):** `cortexward-core` imports **nothing** from adapters, application, or
 surfaces. Dependencies point inward. (See [§26](#26-engineering-standards), import-linter.)
 
 ## 9. Component architecture
 
 | Component | Package | Responsibility |
 |---|---|---|
-| Domain core | `aegisforge-core` | Model, ladder, ports, provenance. Pure. |
-| CPG | `aegisforge-cpg` | Parse → AST/CFG/DFG/call graph; query API. |
-| Scanners | `aegisforge-scanners` | Adapters + normalization + dedup. |
-| LLM | `aegisforge-llm` | Provider protocol, adapters, router, prompts. |
-| Orchestrator | `aegisforge-orchestrator` | Agents + state machine (LangGraph adapter). |
-| Sandbox | `aegisforge-sandbox` | Isolated execution for dynamic verification. |
-| Storage | `aegisforge-storage` | Event log + read models + artifact store. |
-| Eval | `aegisforge-eval` | Benchmark harness, metrics, datasets, RunManifest. |
-| CLI / Server / SDK / MCP | `aegisforge-cli` etc. | Delivery surfaces over the core engine. |
+| Domain core | `cortexward-core` | Model, ladder, ports, provenance. Pure. |
+| CPG | `cortexward-cpg` | Parse → AST/CFG/DFG/call graph; query API. |
+| Scanners | `cortexward-scanners` | Adapters + normalization + dedup. |
+| LLM | `cortexward-llm` | Provider protocol, adapters, router, prompts. |
+| Orchestrator | `cortexward-orchestrator` | Agents + state machine (LangGraph adapter). |
+| Sandbox | `cortexward-sandbox` | Isolated execution for dynamic verification. |
+| Storage | `cortexward-storage` | Event log + read models + artifact store. |
+| Eval | `cortexward-eval` | Benchmark harness, metrics, datasets, RunManifest. |
+| CLI / Server / SDK / MCP | `cortexward-cli` etc. | Delivery surfaces over the core engine. |
 
 ## 10. Domain model
 
@@ -274,7 +274,7 @@ The ladder's weights and thresholds MUST be encapsulated in a versioned `Calibra
 ## 11. Verification Ladder specification
 
 Normative definition of the project's central thesis. (Reference implementation exists in
-`aegisforge.domain.verification`.)
+`cortexward.domain.verification`.)
 
 **Rungs** (monotone): `NONE(0) → STATIC_REACHABILITY(1) → TAINT_CONFIRMED(2) → DYNAMIC_POC(3) →
 DIFFERENTIAL_TEST(4)`.
@@ -433,17 +433,17 @@ them at runtime. No core change is required to add one.
 
 | Entry-point group | Port | Example plugins |
 |---|---|---|
-| `aegisforge.languages` | `LanguageProvider` | python, javascript, java, go |
-| `aegisforge.scanners` | `ScannerPort` | semgrep, bandit, gitleaks, osv |
-| `aegisforge.llm` | `LLMPort` | anthropic, openai, gemini, ollama, litellm |
-| `aegisforge.sandbox` | `SandboxPort` | docker, gvisor, firecracker |
-| `aegisforge.vcs` | `VCSPort` | github, gitlab, bitbucket, azuredevops |
-| `aegisforge.storage` | `StoragePort` | sqlite, postgres |
-| `aegisforge.reporters` | `ReporterPort` | sarif, vex, cyclonedx, markdown |
+| `cortexward.languages` | `LanguageProvider` | python, javascript, java, go |
+| `cortexward.scanners` | `ScannerPort` | semgrep, bandit, gitleaks, osv |
+| `cortexward.llm` | `LLMPort` | anthropic, openai, gemini, ollama, litellm |
+| `cortexward.sandbox` | `SandboxPort` | docker, gvisor, firecracker |
+| `cortexward.vcs` | `VCSPort` | github, gitlab, bitbucket, azuredevops |
+| `cortexward.storage` | `StoragePort` | sqlite, postgres |
+| `cortexward.reporters` | `ReporterPort` | sarif, vex, cyclonedx, markdown |
 
 ### 17.1 Port catalog (contracts, summarized)
 
-Each is a `typing.Protocol` in `aegisforge-core`. Full signatures land with the implementing phase.
+Each is a `typing.Protocol` in `cortexward-core`. Full signatures land with the implementing phase.
 
 - **`LanguageProvider`** — `parse(path) -> CPG`, `entrypoints(cpg)`, `sources()/sinks()/
   sanitizers()`, `dependencies(manifest)`. No build execution.
@@ -492,11 +492,11 @@ All surfaces call the **same core engine**; none embeds business logic.
 
 ### 20.1 CLI (Typer)
 ```
-aegis scan <path|repo> [--lang ...] [--scanners ...] [--profile local|balanced|thorough]
+ward scan <path|repo> [--lang ...] [--scanners ...] [--profile local|balanced|thorough]
                        [--format sarif,vex,sbom,md] [--sandbox docker|none] [--offline]
-aegis verify <run-id>            aegis fix <finding-id> [--open-pr]
-aegis report <run-id> --format vex        aegis bench run <suite> --dataset <ver>
-aegis serve                      aegis plugins list
+ward verify <run-id>            ward fix <finding-id> [--open-pr]
+ward report <run-id> --format vex        ward bench run <suite> --dataset <ver>
+ward serve                      ward plugins list
 ```
 Deterministic exit codes: `0` clean, `1` findings ≥ threshold, `2` error. `--format sarif`
 to stdout for CI.
@@ -509,8 +509,8 @@ long jobs are async with a job id + polling/webhook.
 
 ### 20.3 Python SDK
 ```python
-from aegisforge import Engine
-engine = Engine.from_config("aegis.toml")
+from cortexward import Engine
+engine = Engine.from_config("ward.toml")
 run = engine.scan("path/or/repo")
 for f in run.findings:
     if f.assessment.recommended_state == "verified":
@@ -519,12 +519,12 @@ for f in run.findings:
 Stable, typed, semver'd surface — the SDK is a first-class product (researchers depend on it).
 
 ### 20.4 MCP server
-Exposes read-mostly tools to MCP clients (IDE assistants): `aegis.scan`, `aegis.get_findings`,
-`aegis.explain_finding`, `aegis.propose_fix`. Tools that mutate repos (open PR) require explicit
+Exposes read-mostly tools to MCP clients (IDE assistants): `ward.scan`, `ward.get_findings`,
+`ward.explain_finding`, `ward.propose_fix`. Tools that mutate repos (open PR) require explicit
 confirmation config. No tool can approve/dismiss findings (safety).
 
 ### 20.5 GitHub Action / App
-Action: composite step running `aegis scan --format sarif` and uploading to code scanning; PR
+Action: composite step running `ward scan --format sarif` and uploading to code scanning; PR
 comment summary; optional fix PR. App: webhook-driven, per-install config, least-privilege token.
 
 ## 21. Integrations
@@ -536,7 +536,7 @@ template, ADO extension) all shell into the same CLI/SDK.
 
 ## 22. Security architecture
 
-AegisForge processes **adversarial input** (untrusted code, repos, prompts) and runs **dynamic
+CortexWard processes **adversarial input** (untrusted code, repos, prompts) and runs **dynamic
 exploits**. Security is foundational, not additive.
 
 ### 22.1 Trust boundaries
@@ -564,7 +564,7 @@ commit messages, READMEs, PoC output   │  storage, policy, RunManifest
 | LLM boundary | Secret exfiltration to provider | Secret redaction pipeline; offline mode; explicit egress consent |
 | Sandbox | Escape / lateral movement | Progressive isolation (container→microVM), deny egress, ephemeral, seccomp/AppArmor |
 | Patch/PR | Malicious patch introduced via manipulated model | Three-gate validation; human merge only; minimal-diff |
-| Supply chain | Compromised dependency of AegisForge itself | `uv.lock`, pip-audit, gitleaks, SBOM, signed releases + SLSA provenance |
+| Supply chain | Compromised dependency of CortexWard itself | `uv.lock`, pip-audit, gitleaks, SBOM, signed releases + SLSA provenance |
 | Storage/API | Tampering, unauthorized access | AuthN/Z on API; immutable manifests; append-only event log |
 
 ### 22.3 Prompt-injection defense (normative)
@@ -633,19 +633,19 @@ bottleneck and are pooled, capped, and independently schedulable.
 Target structure after the approved workspace migration:
 
 ```
-AegisForge/
+CortexWard/
 ├─ packages/
-│  ├─ aegisforge-core/        src/aegisforge/{domain,ports}/ ; tests/
-│  ├─ aegisforge-cpg/
-│  ├─ aegisforge-scanners/
-│  ├─ aegisforge-llm/
-│  ├─ aegisforge-orchestrator/
-│  ├─ aegisforge-sandbox/
-│  ├─ aegisforge-storage/
-│  ├─ aegisforge-eval/
-│  ├─ aegisforge-cli/
-│  ├─ aegisforge-server/
-│  └─ aegisforge-sdk/
+│  ├─ cortexward-core/        src/cortexward/{domain,ports}/ ; tests/
+│  ├─ cortexward-cpg/
+│  ├─ cortexward-scanners/
+│  ├─ cortexward-llm/
+│  ├─ cortexward-orchestrator/
+│  ├─ cortexward-sandbox/
+│  ├─ cortexward-storage/
+│  ├─ cortexward-eval/
+│  ├─ cortexward-cli/
+│  ├─ cortexward-server/
+│  └─ cortexward-sdk/
 ├─ integrations/  (github-action/, vscode/, mcp/, gitlab/, ado/)
 ├─ datasets/      (versioned benchmark suites; DVC/pointers)
 ├─ docs/          (specifications/, adr/, reviews/, benchmark/, guides/)
@@ -663,12 +663,12 @@ AegisForge/
 - **Lint/format:** Ruff (lint + format). Conventional Commits. Small, logical commits.
 - **Docstrings & ADRs:** every module documents *why*; significant decisions become ADRs.
 - **Errors & logging:** typed errors; structured logs (structlog); no secrets in logs.
-- **Config:** typed, layered (defaults → file → env → flags); a single `aegis.toml`.
+- **Config:** typed, layered (defaults → file → env → flags); a single `ward.toml`.
 - **No dead code / no TODOs without an issue link.**
 
 ## 27. Release & versioning
 
-- **SemVer** for each package; the **umbrella `aegisforge` version** tracks the platform.
+- **SemVer** for each package; the **umbrella `cortexward` version** tracks the platform.
 - **Independent plugin versioning**; compatibility declared via core version ranges.
 - **Separate version streams**: MPS (this doc), SARIF/VEX schema versions, **prompt versions**,
   **dataset versions**, **calibration-profile versions** — all recorded in `RunManifest`.

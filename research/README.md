@@ -1,4 +1,4 @@
-# AegisForge Research
+# CortexWard Research
 
 This directory is the project's research notebook. It captures novel ideas, open questions,
 evaluation designs, and publication opportunities as they arise, so nothing is lost between

@@ -8,62 +8,10 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "aegisforge-core",
-    "aegisforge-cpg",
-    "aegisforge-workspace",
+    "cortexward-core",
+    "cortexward-cpg",
+    "cortexward-workspace",
 ]
-
-[[package]]
-name = "aegisforge-core"
-version = "0.1.0.dev0"
-source = { editable = "packages/aegisforge-core" }
-dependencies = [
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.7,<3" }]
-
-[[package]]
-name = "aegisforge-cpg"
-version = "0.1.0.dev0"
-source = { editable = "packages/aegisforge-cpg" }
-dependencies = [
-    { name = "aegisforge-core" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aegisforge-core", editable = "packages/aegisforge-core" },
-    { name = "pydantic", specifier = ">=2.7,<3" },
-]
-
-[[package]]
-name = "aegisforge-workspace"
-version = "0.0.0"
-source = { virtual = "." }
-
-[package.optional-dependencies]
-dev = [
-    { name = "hypothesis" },
-    { name = "import-linter" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
-    { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.1" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "annotated-types"
@@ -135,6 +83,58 @@ sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
 ]
+
+[[package]]
+name = "cortexward-core"
+version = "0.1.0.dev0"
+source = { editable = "packages/cortexward-core" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.7,<3" }]
+
+[[package]]
+name = "cortexward-cpg"
+version = "0.1.0.dev0"
+source = { editable = "packages/cortexward-cpg" }
+dependencies = [
+    { name = "cortexward-core" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cortexward-core", editable = "packages/cortexward-core" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
+]
+
+[[package]]
+name = "cortexward-workspace"
+version = "0.0.0"
+source = { virtual = "." }
+
+[package.optional-dependencies]
+dev = [
+    { name = "hypothesis" },
+    { name = "import-linter" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
+    { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.1" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "coverage"

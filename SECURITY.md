@@ -1,6 +1,6 @@
 # Security Policy
 
-AegisForge is a security tool, and we hold it to the standard it enforces on others. This
+CortexWard is a security tool, and we hold it to the standard it enforces on others. This
 document covers how to report vulnerabilities and the security model of the project itself.
 
 ## Reporting a vulnerability
@@ -24,12 +24,12 @@ We will credit reporters who wish to be named once a fix is released.
 
 ## Supported versions
 
-AegisForge is pre-1.0. Security fixes are applied to `main`. Once 1.0 ships, this table will
+CortexWard is pre-1.0. Security fixes are applied to `main`. Once 1.0 ships, this table will
 track supported release lines.
 
-## Security model of AegisForge itself
+## Security model of CortexWard itself
 
-AegisForge analyzes code that must be treated as **untrusted, adversarial input**. Our design
+CortexWard analyzes code that must be treated as **untrusted, adversarial input**. Our design
 defends against, at minimum:
 
 - **Prompt injection** embedded in source, comments, or documentation. Analyzed content is
@@ -48,6 +48,6 @@ STRIDE model is developed in Phase 5.
 
 ## Responsible use
 
-AegisForge is for **authorized** security testing only. Do not run it against code you do not
+CortexWard is for **authorized** security testing only. Do not run it against code you do not
 own or lack permission to test. If it discovers previously unknown vulnerabilities in
 third-party software, follow coordinated disclosure before publishing details.

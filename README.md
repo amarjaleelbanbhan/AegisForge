@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ AegisForge
+# 🛡️ CortexWard
 
 **An autonomous AI software security engineer that understands, verifies, fixes, and secures software.**
 
@@ -15,7 +15,7 @@
 ---
 
 > **Status: Pre-alpha (Phase 1.5).** The domain core, port catalog, plugin registry, and a
-> multi-package workspace are in place. AegisForge is being built one milestone at a time —
+> multi-package workspace are in place. CortexWard is being built one milestone at a time —
 > see the [Roadmap](ROADMAP.md).
 >
 > 📐 **Single source of truth:** the [Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)
@@ -23,7 +23,7 @@
 > [Phase-1 review](docs/reviews/2026-07-05-phase-1-architecture-review.md) and the
 > [Evaluation Framework](docs/benchmark/evaluation-framework.md).
 
-## Why AegisForge
+## Why CortexWard
 
 AI writes a large and growing share of the world's code, and studies repeatedly find
 that **30–40% of AI-generated code ships with security flaws**. Existing tools each see
@@ -34,13 +34,13 @@ only part of the picture:
 - **LLM reviewers** reason about intent but hallucinate, and can't *prove* anything.
 - **Almost none** close the loop by generating a fix and demonstrating that the fix works.
 
-AegisForge is not another LLM wrapper. It is an **autonomous security engineer**: it builds
+CortexWard is not another LLM wrapper. It is an **autonomous security engineer**: it builds
 a real understanding of a codebase, gathers *evidence* about each potential vulnerability,
 and only escalates or fixes what it can substantiate.
 
 ## The core idea: the Verification Ladder
 
-Instead of a binary "did an exploit run?", AegisForge assigns each finding the **strongest
+Instead of a binary "did an exploit run?", CortexWard assigns each finding the **strongest
 feasible evidence** and calibrates its confidence accordingly:
 
 | Rung | Evidence | Meaning |
@@ -63,21 +63,21 @@ Results are exported as **SARIF** (findings), **VEX** (exploitability), and **Cy
 
 ## Architecture at a glance
 
-AegisForge uses a hexagonal (ports-and-adapters) design with an in-process, inspectable
+CortexWard uses a hexagonal (ports-and-adapters) design with an in-process, inspectable
 agent orchestrator. Everything that touches the outside world is a pluggable adapter.
 
 ```
-Interfaces:   CLI · REST API · GitHub App · VS Code extension           (packages/aegisforge-{cli,server,sdk})
+Interfaces:   CLI · REST API · GitHub App · VS Code extension           (packages/cortexward-{cli,server,sdk})
 Application:  Orchestrator → Planner · Scanner · Verifier · Repair · Reviewer · Memory
 Domain core:  Finding · Evidence · Verification Ladder · Patch · Provenance   ← pure, no I/O
 Ports:        CodeGraph · LanguageProvider · Scanner · LLM · Sandbox · VCS
-              · Storage · Telemetry · Orchestrator · Reporter   (aegisforge.ports, typing.Protocol)
-Plugins:      entry-point discovery — a new adapter needs zero core changes (aegisforge.plugins)
+              · Storage · Telemetry · Orchestrator · Reporter   (cortexward.ports, typing.Protocol)
+Plugins:      entry-point discovery — a new adapter needs zero core changes (cortexward.plugins)
 Adapters:     tree-sitter CPG · Semgrep/Bandit/CodeQL · Anthropic/OpenAI/Ollama · Docker …
 ```
 
-`aegisforge-core` ships the domain model, the full port catalog, and the plugin registry.
-`aegisforge-cpg` (depends on `aegisforge-core`) ships the reference Code Property Graph engine
+`cortexward-core` ships the domain model, the full port catalog, and the plugin registry.
+`cortexward-cpg` (depends on `cortexward-core`) ships the reference Code Property Graph engine
 — a language-agnostic node/edge schema and an in-memory `CodeGraph` implementation with
 cycle-safe reachability/taint/slice queries; tree-sitter-based parsing into it is in progress.
 Every other row is an independently versioned package under [`packages/`](packages/), added as
@@ -91,8 +91,8 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). This is a **uv works
 synced explicitly with `--all-packages`.
 
 ```bash
-git clone https://github.com/amarjaleelbanbhan/AegisForge
-cd AegisForge
+git clone https://github.com/amarjaleelbanbhan/CortexWard
+cd CortexWard
 uv sync --all-packages --extra dev
 
 # Run the quality gate exactly as CI does
@@ -100,13 +100,13 @@ uv run ruff check packages
 uv run ruff format --check packages
 for pkg in packages/*/; do uv run mypy "${pkg}src" "${pkg}tests"; done   # per-package, see CONTRIBUTING.md
 uv run lint-imports              # hexagonal dependency-direction check
-uv run pytest --cov=aegisforge --cov-fail-under=100
+uv run pytest --cov=cortexward --cov-fail-under=100
 ```
 
 The domain core is usable today:
 
 ```python
-from aegisforge.domain import (
+from cortexward.domain import (
     Finding, Evidence, EvidenceKind, Provenance,
     SourceLocation, VerificationRung, assess,
 )
@@ -134,7 +134,7 @@ print(report.recommended_state, report.vex_status, round(report.confidence, 2))
 
 ## Roadmap
 
-AegisForge is built in strict, shippable phases. Phase 1 delivered the foundation and the
+CortexWard is built in strict, shippable phases. Phase 1 delivered the foundation and the
 tested domain core; Phase 1.5 (this milestone) delivers the workspace restructure, the port
 catalog, the plugin registry, and hardened CI. See [ROADMAP.md](ROADMAP.md) for every phase.
 

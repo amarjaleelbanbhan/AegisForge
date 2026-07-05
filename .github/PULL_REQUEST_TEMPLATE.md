@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to AegisForge! Keep PRs small and focused. -->
+<!-- Thanks for contributing to CortexWard! Keep PRs small and focused. -->
 
 ## Summary
 
@@ -18,7 +18,7 @@
 - [ ] The local quality gate passes: `ruff check`, `ruff format --check`, `mypy`, `pytest`.
 - [ ] New/changed behavior is covered by tests.
 - [ ] Documentation and `CHANGELOG.md` updated where relevant.
-- [ ] The domain core (`aegisforge.domain`) remains pure (no I/O / adapter imports).
+- [ ] The domain core (`cortexward.domain`) remains pure (no I/O / adapter imports).
 
 ## Security checklist
 
