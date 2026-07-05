@@ -7,6 +7,19 @@ All notable changes to AegisForge are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Phase 2 (in progress) — Code Property Graph engine.**
+  - New workspace package `aegisforge-cpg`, depending on `aegisforge-core`.
+  - `aegisforge.cpg.model`: the language-agnostic node/edge schema (`NodeKind`, `EdgeKind`,
+    `Node`, `Edge`) unifying AST, control-flow, data-flow, and call edges.
+  - `aegisforge.cpg.graph`: `GraphBuilder` and `InMemoryCodeGraph`, the reference implementation
+    of the `CodeGraph` port — cycle-safe `reachable`/`taint`/`callers`/`slice`/`location_of`,
+    complete and correct over whatever edges exist even before CFG/DFG/call-graph builders land.
+  - 100%-covered tests including cycle, diamond-revisit, and self-sink cases.
+- **Test infrastructure fix:** adopted pytest's `--import-mode=importlib` and dropped
+  `__init__.py` from every package's `tests/` tree, after adding a second workspace package
+  revealed a real collision (`tests` as a shared top-level module name). `mypy` now runs once per
+  package for the same reason. Test builders (`make_evidence`, `make_finding`) moved from
+  importable helpers to pytest fixtures.
 - **Phase 1.5 — Workspace & contracts.**
   - Restructured into a **uv workspace monorepo**: `packages/aegisforge-core/` is the first
     independently versioned package; `aegisforge` is now a PEP 420 namespace package so future

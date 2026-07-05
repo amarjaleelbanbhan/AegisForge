@@ -38,10 +38,19 @@ Restructured before the codebase ossified.
   scan, and a CycloneDX SBOM artifact. *(Signed release provenance is deferred to Phase 10,
   where release automation is specified — MPS §27.)*
 
-## Phase 2 — Code intelligence ⏳
+## Phase 2 — Code intelligence 🚧
 Language-agnostic Code Property Graph on tree-sitter (AST → CFG → DFG → call graph), a query
 API, and a dependency graph. Python first.
 - Enables reachability + taint (ladder rungs 1–2) and grounded LLM retrieval.
+- ✅ **Graph engine** (`aegisforge-cpg`): the node/edge schema (`aegisforge.cpg.model`) and the
+  reference in-memory `CodeGraph` implementation (`aegisforge.cpg.graph`) — `GraphBuilder` plus
+  cycle-safe `reachable`/`taint`/`callers`/`slice`/`location_of` queries. Complete and correct
+  over whatever edges exist; a graph built from AST alone honestly reports no control/data paths
+  until the builders below populate more edges.
+- ⏳ Python `LanguageProvider`: tree-sitter AST parsing into the schema above.
+- ⏳ Control-flow graph builder (populates `CFG_NEXT`).
+- ⏳ Data-flow / def-use graph builder (populates `DFG_REACHES`) — enables real taint analysis.
+- ⏳ Call graph builder (populates `CALLS`) and dependency-manifest parsing.
 
 ## Phase 3 — Scanners ⏳
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normalized to the

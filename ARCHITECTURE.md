@@ -131,12 +131,19 @@ exist yet — these are the contracts future scanner/LLM/sandbox/VCS packages im
 `PluginRegistry`, which discovers and lazily loads adapters via `importlib.metadata` entry
 points. The registry never imports a concrete adapter package.
 
-### 4.2 Code intelligence (Phase 2) — *planned*
+### 4.2 Code intelligence (Phase 2) — *in progress*
 
-A language-agnostic **Code Property Graph** (AST + control-flow + data-flow + call graph) on
-tree-sitter, with a query API. This is the technical moat: it powers reachability and taint
-analysis *and* grounds the LLM in retrieved facts instead of raw file dumps, which is the
-single biggest lever on hallucination. Python first; other languages are adapters.
+A language-agnostic **Code Property Graph** (AST + control-flow + data-flow + call graph), with
+a query API. This is the technical moat: it powers reachability and taint analysis *and* grounds
+the LLM in retrieved facts instead of raw file dumps, which is the single biggest lever on
+hallucination. Python first; other languages are adapters.
+
+`aegisforge-cpg` (depends on `aegisforge-core`) ships the graph engine: `aegisforge.cpg.model`
+defines the schema, and `aegisforge.cpg.graph` provides `GraphBuilder` plus `InMemoryCodeGraph`
+— the reference `CodeGraph` implementation, with cycle-safe reachability/taint/slice queries.
+This engine is complete and language-agnostic; tree-sitter parsing into it (the Python
+`LanguageProvider`), the CFG/DFG/call-graph builders that populate its edges, and the dependency
+graph are the remaining Phase 2 work.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 

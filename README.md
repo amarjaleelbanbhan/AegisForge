@@ -76,10 +76,13 @@ Plugins:      entry-point discovery — a new adapter needs zero core changes (a
 Adapters:     tree-sitter CPG · Semgrep/Bandit/CodeQL · Anthropic/OpenAI/Ollama · Docker …
 ```
 
-`aegisforge-core` (this repo's only populated package so far) ships the domain model, the full
-port catalog, and the plugin registry. Every other row is an independently versioned package
-under [`packages/`](packages/), added as its phase lands — see [ARCHITECTURE.md](ARCHITECTURE.md)
-and [ADR-0005](docs/adr/0005-uv-workspace-monorepo.md).
+`aegisforge-core` ships the domain model, the full port catalog, and the plugin registry.
+`aegisforge-cpg` (depends on `aegisforge-core`) ships the reference Code Property Graph engine
+— a language-agnostic node/edge schema and an in-memory `CodeGraph` implementation with
+cycle-safe reachability/taint/slice queries; tree-sitter-based parsing into it is in progress.
+Every other row is an independently versioned package under [`packages/`](packages/), added as
+its phase lands — see [ARCHITECTURE.md](ARCHITECTURE.md) and
+[ADR-0005](docs/adr/0005-uv-workspace-monorepo.md).
 
 ## Quickstart (development)
 
@@ -95,7 +98,7 @@ uv sync --all-packages --extra dev
 # Run the quality gate exactly as CI does
 uv run ruff check packages
 uv run ruff format --check packages
-uv run mypy
+for pkg in packages/*/; do uv run mypy "${pkg}src" "${pkg}tests"; done   # per-package, see CONTRIBUTING.md
 uv run lint-imports              # hexagonal dependency-direction check
 uv run pytest --cov=aegisforge --cov-fail-under=100
 ```
