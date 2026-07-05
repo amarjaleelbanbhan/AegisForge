@@ -1,18 +1,18 @@
-# ADR-0005: uv workspace monorepo with `aegisforge.*` namespace
+# ADR-0005: uv workspace monorepo with `cortexward.*` namespace
 
 **Status:** Accepted · **Date:** 2026-07-05 · **Changes Phase-1 layout**
 
 ## Context
-Phase 1 shipped a single flat `aegisforge` package. The 3–5 year system is a platform: core, CPG,
+Phase 1 shipped a single flat `cortexward` package. The 3–5 year system is a platform: core, CPG,
 many language/scanner/LLM adapters, orchestrator, CLI, server, SDK, MCP, and third-party plugins —
 with heavy, conflicting dependencies and different release cadences. One package forces one install
 and one release, and prevents per-subsystem ownership.
 
 ## Decision
 Restructure into a **uv workspace monorepo** of independently versioned packages using the
-PEP 420 `aegisforge.*` namespace: `aegisforge-core`, `-cpg`, `-scanners`, `-llm`, `-orchestrator`,
-`-sandbox`, `-storage`, `-eval`, `-cli`, `-server`, `-sdk`, under `packages/`. `aegisforge-core`
-holds the domain + ports and depends on nothing heavy. Imports (`from aegisforge.domain import …`)
+PEP 420 `cortexward.*` namespace: `cortexward-core`, `-cpg`, `-scanners`, `-llm`, `-orchestrator`,
+`-sandbox`, `-storage`, `-eval`, `-cli`, `-server`, `-sdk`, under `packages/`. `cortexward-core`
+holds the domain + ports and depends on nothing heavy. Imports (`from cortexward.domain import …`)
 are unchanged.
 
 ## Consequences

@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a defect in AegisForge
+description: Report a defect in CortexWard
 title: "bug: <short description>"
 labels: ["bug", "triage"]
 body:
@@ -29,7 +29,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: AegisForge version / commit
+      label: CortexWard version / commit
     validations:
       required: true
   - type: input

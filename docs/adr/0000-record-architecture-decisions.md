@@ -3,7 +3,7 @@
 **Status:** Accepted · **Date:** 2026-07-05
 
 ## Context
-AegisForge is a long-lived, multi-contributor platform. Decisions made implicitly are forgotten,
+CortexWard is a long-lived, multi-contributor platform. Decisions made implicitly are forgotten,
 re-litigated, and eroded. Once the MPS is approved, the architecture must be stable yet able to
 evolve deliberately.
 

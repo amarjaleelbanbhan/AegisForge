@@ -1,6 +1,6 @@
-# AegisForge Governance
+# CortexWard Governance
 
-This document describes how decisions are made in the AegisForge project. It is intentionally
+This document describes how decisions are made in the CortexWard project. It is intentionally
 lightweight while the project is young and will evolve as the community grows.
 
 ## Principles

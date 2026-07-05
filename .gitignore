@@ -23,6 +23,7 @@ ENV/
 .ruff_cache/
 .pytest_cache/
 .hypothesis/
+.import_linter_cache/
 .coverage
 .coverage.*
 htmlcov/
@@ -46,8 +47,8 @@ uv.lock.*
 .DS_Store
 Thumbs.db
 
-# AegisForge runtime artifacts
-.aegisforge/
+# CortexWard runtime artifacts
+.cortexward/
 *.sarif.local
 sandbox-artifacts/
 runs/

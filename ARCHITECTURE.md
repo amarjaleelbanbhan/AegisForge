@@ -1,4 +1,4 @@
-# AegisForge Architecture
+# CortexWard Architecture
 
 > **⚠️ This document is now a summary.** The single source of truth for architecture is the
 > **[Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)**, which is **approved
@@ -10,7 +10,7 @@ This document gives a fast orientation to the architecture, the reasoning behind
 decisions, and how the pieces fit together. For normative contracts (ports, domain model,
 security, data/DB design, APIs, evaluation), read the MPS.
 
-> **Audience:** engineers extending AegisForge, and reviewers evaluating its design.
+> **Audience:** engineers extending CortexWard, and reviewers evaluating its design.
 > **Status:** living summary. Phase 1 and 1.5 subsystems are implemented; later phases are
 > specified as contracts in the MPS before they are built.
 
@@ -18,7 +18,7 @@ security, data/DB design, APIs, evaluation), read the MPS.
 
 ## 1. Design goals
 
-AegisForge is built to be, simultaneously:
+CortexWard is built to be, simultaneously:
 
 - **Correct and honest** — never assert what it cannot substantiate.
 - **Modular and extensible** — scanners, languages, LLMs, and sandboxes are plugins.
@@ -29,7 +29,7 @@ AegisForge is built to be, simultaneously:
 
 ## 2. The central thesis: evidence over assertion
 
-The defining idea of AegisForge is the **Verification Ladder**. A finding is only as
+The defining idea of CortexWard is the **Verification Ladder**. A finding is only as
 trustworthy as the strongest *feasible* evidence gathered for it, and different vulnerability
 classes admit different evidence:
 
@@ -41,7 +41,7 @@ This replaces the brittle "exploit everything" model (which only works for injec
 bugs) with a spectrum that covers *all* CWEs while remaining honest about certainty.
 
 Confidence is combined in **log-odds space** and squashed through a logistic function
-(`aegisforge.domain.verification`). Two policies are enforced structurally:
+(`cortexward.domain.verification`). Two policies are enforced structurally:
 
 1. **LLM-insufficiency:** model judgement contributes bounded confidence and *cannot* raise
    a finding's ladder rung. A finding cannot be `VERIFIED` without independent corroboration.
@@ -54,32 +54,32 @@ the ladder answers.
 
 ## 3. Architectural style: hexagonal + in-process orchestration
 
-AegisForge follows **hexagonal (ports & adapters)** architecture with a pure domain core.
+CortexWard follows **hexagonal (ports & adapters)** architecture with a pure domain core.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│ Interfaces        CLI · REST API · GitHub App · VS Code extension    │  aegisforge-{cli,server,sdk}
+│ Interfaces        CLI · REST API · GitHub App · VS Code extension    │  cortexward-{cli,server,sdk}
 ├────────────────────────────────────────────────────────────────────┤
-│ Application       Orchestrator (state machine)                       │  aegisforge-orchestrator
+│ Application       Orchestrator (state machine)                       │  cortexward-orchestrator
 │                   Planner → Scanner → Verifier → Repair → Reviewer   │
 │                   Coordinator · Memory                               │
 ├────────────────────────────────────────────────────────────────────┤
 │ Domain core       Finding · Evidence · Verification Ladder ·         │  ┐
 │ (pure, no I/O)    Patch · Provenance · Assessment                    │  │
-├────────────────────────────────────────────────────────────────────┤  │ aegisforge-core
+├────────────────────────────────────────────────────────────────────┤  │ cortexward-core
 │ Ports             CodeGraph · LanguageProvider · Scanner · LLM ·      │  │ (implemented,
 │ (Protocols)       Sandbox · VCS · Storage · Telemetry ·               │  │  Phase 1/1.5)
 │                   Orchestrator · Reporter                             │  │
 ├────────────────────────────────────────────────────────────────────┤  │
-│ Plugin registry   Entry-point discovery (aegisforge.plugins)          │  ┘
+│ Plugin registry   Entry-point discovery (cortexward.plugins)          │  ┘
 ├────────────────────────────────────────────────────────────────────┤
-│ Adapters          tree-sitter CPG · Semgrep/Bandit/CodeQL ·          │  aegisforge-{cpg,scanners,
+│ Adapters          tree-sitter CPG · Semgrep/Bandit/CodeQL ·          │  cortexward-{cpg,scanners,
 │                   Anthropic/OpenAI/Ollama · Docker/gVisor · PyGithub │  llm,sandbox,storage}
 │                   · SQLite/Postgres+pgvector · OpenTelemetry          │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Each row below "Interfaces" that says *(implemented)* lives in `packages/aegisforge-core/`
+Each row below "Interfaces" that says *(implemented)* lives in `packages/cortexward-core/`
 today; every other row is a sibling package added under `packages/` as its phase lands
 ([ADR-0005](docs/adr/0005-uv-workspace-monorepo.md)).
 
@@ -92,7 +92,7 @@ not a founding assumption. Modularity comes from interfaces, not network hops.
 ### Plugin model
 
 Everything crossing a port is discovered via Python **entry points**
-(`importlib.metadata`), through the registry in `aegisforge.plugins`. Adding a scanner, a
+(`importlib.metadata`), through the registry in `cortexward.plugins`. Adding a scanner, a
 language front-end, a verifier, or an LLM backend is a matter of shipping a package that
 registers under the relevant `PluginGroup` — no core changes required. The registry never
 imports an adapter package directly; it resolves entry points by name at runtime.
@@ -100,14 +100,14 @@ imports an adapter package directly; it resolves entry points by name at runtime
 ### Import boundaries
 
 The dependency direction above is enforced mechanically, not just by convention:
-**import-linter** contracts (in the root `pyproject.toml`) forbid `aegisforge.domain` and
-`aegisforge.ports` from importing any adapter, application, or interface package, and a
+**import-linter** contracts (in the root `pyproject.toml`) forbid `cortexward.domain` and
+`cortexward.ports` from importing any adapter, application, or interface package, and a
 `layers` contract fixes `plugins > ports > domain`. `uv run lint-imports` runs in CI on every
 push.
 
 ## 4. Subsystems
 
-### 4.1 Domain core (`aegisforge.domain`) — *implemented*
+### 4.1 Domain core (`cortexward.domain`) — *implemented*
 
 Pure model and services with no I/O:
 
@@ -119,7 +119,7 @@ Pure model and services with no I/O:
 Findings are updated functionally (`with_evidence`, `with_state`) so no agent mutates shared
 state by accident; the orchestrator threads new values explicitly.
 
-### 4.1b Port catalog & plugin registry (`aegisforge.ports`, `aegisforge.plugins`) — *implemented*
+### 4.1b Port catalog & plugin registry (`cortexward.ports`, `cortexward.plugins`) — *implemented*
 
 The full port catalog from MPS §17.1 exists today as `typing.Protocol` contracts, each owning
 its own small request/response DTOs so the domain model stays free of port concerns:
@@ -127,16 +127,23 @@ its own small request/response DTOs so the domain model stays free of port conce
 `VCSPort`, `StoragePort`, `TelemetryPort`, `OrchestratorPort`, `ReporterPort`. No adapters
 exist yet — these are the contracts future scanner/LLM/sandbox/VCS packages implement against.
 
-`aegisforge.plugins` provides `PluginGroup` (the canonical entry-point group per port) and
+`cortexward.plugins` provides `PluginGroup` (the canonical entry-point group per port) and
 `PluginRegistry`, which discovers and lazily loads adapters via `importlib.metadata` entry
 points. The registry never imports a concrete adapter package.
 
-### 4.2 Code intelligence (Phase 2) — *planned*
+### 4.2 Code intelligence (Phase 2) — *in progress*
 
-A language-agnostic **Code Property Graph** (AST + control-flow + data-flow + call graph) on
-tree-sitter, with a query API. This is the technical moat: it powers reachability and taint
-analysis *and* grounds the LLM in retrieved facts instead of raw file dumps, which is the
-single biggest lever on hallucination. Python first; other languages are adapters.
+A language-agnostic **Code Property Graph** (AST + control-flow + data-flow + call graph), with
+a query API. This is the technical moat: it powers reachability and taint analysis *and* grounds
+the LLM in retrieved facts instead of raw file dumps, which is the single biggest lever on
+hallucination. Python first; other languages are adapters.
+
+`cortexward-cpg` (depends on `cortexward-core`) ships the graph engine: `cortexward.cpg.model`
+defines the schema, and `cortexward.cpg.graph` provides `GraphBuilder` plus `InMemoryCodeGraph`
+— the reference `CodeGraph` implementation, with cycle-safe reachability/taint/slice queries.
+This engine is complete and language-agnostic; tree-sitter parsing into it (the Python
+`LanguageProvider`), the CFG/DFG/call-graph builders that populate its edges, and the dependency
+graph are the remaining Phase 2 work.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 
@@ -166,7 +173,7 @@ the fix.
 
 ## 5. Cross-cutting concerns
 
-### 5.1 Security of AegisForge itself
+### 5.1 Security of CortexWard itself
 
 The code under analysis is **untrusted, adversarial input**. Concrete threats and defenses:
 
@@ -176,7 +183,7 @@ The code under analysis is **untrusted, adversarial input**. Concrete threats an
 | Malicious build steps executing during "static" analysis | No build execution in the static phase; parsing only. |
 | Sandbox / analysis escape | Deny-by-default egress, ephemeral envs, progressive isolation tiers. |
 | Secret exfiltration via LLM APIs | Local-only mode; explicit egress consent; secret redaction before any model call. |
-| Supply chain of AegisForge's own deps | `pip-audit` + `gitleaks` in CI (`self-audit` job); pinned, minimal dependencies. |
+| Supply chain of CortexWard's own deps | `pip-audit` + `gitleaks` in CI (`self-audit` job); pinned, minimal dependencies. |
 
 A full STRIDE threat model is developed in Phase 5 and tracked in [`research/`](research/).
 
@@ -206,7 +213,7 @@ framework). This is not optional polish: the ablation studies the research plan 
 | Storage | SQLite → Postgres+pgvector | Zero-config local; scales up on demand. |
 | Observability | OpenTelemetry + structlog | Trace every step; research-grade instrumentation. |
 | Tooling | uv, Ruff, mypy (strict), pytest+hypothesis | Fast, strict, property-tested. |
-| Workspace | uv workspace monorepo, `aegisforge.*` namespace | Independently versioned packages; slim core install. |
+| Workspace | uv workspace monorepo, `cortexward.*` namespace | Independently versioned packages; slim core install. |
 | Import boundaries | import-linter | Mechanically enforces the hexagonal dependency direction. |
 | License | Apache-2.0 | Permissive with a patent grant. |
 
@@ -223,7 +230,7 @@ Significant, hard-to-reverse decisions are recorded as short ADR-style entries. 
 - **ADR-0004 — Treat analyzed code as hostile input.** Prompt-injection and build-execution
   defenses are foundational, not add-ons. (Accepted.)
 - **ADR-0005 — uv workspace monorepo.** Independently versioned packages under `packages/`
-  behind the `aegisforge.*` namespace; done in Phase 1.5 while migration was still cheap.
+  behind the `cortexward.*` namespace; done in Phase 1.5 while migration was still cheap.
   (Accepted.)
 - **ADR-0006 — Own the LLM abstraction.** Providers (Anthropic, OpenAI, Gemini, Ollama,
   OpenAI-compatible, LiteLLM) are interchangeable adapters behind `LLMPort`. (Accepted.)

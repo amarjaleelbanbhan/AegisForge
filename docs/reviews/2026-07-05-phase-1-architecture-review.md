@@ -1,4 +1,4 @@
-# AegisForge — Full Technical Review (Phase 1)
+# CortexWard — Full Technical Review (Phase 1)
 
 **Date:** 2026-07-05
 **Reviewer role:** Principal architect / staff security engineer
@@ -39,7 +39,7 @@ the workspace and freeze the contracts now (spec + skeleton), implement incremen
 
 ### 2.1 Architecture & package layout — **change now**
 
-**Problem.** Everything lives in one importable package `aegisforge`. The target system is a
+**Problem.** Everything lives in one importable package `cortexward`. The target system is a
 *platform*: core engine, CPG, N language providers, M scanner adapters, LLM adapters, an
 orchestrator, a CLI, a REST server, a GitHub App, a VS Code extension, an MCP server, and a
 Python SDK. A single package forces all of these — and all their heavy, conflicting
@@ -47,25 +47,25 @@ dependencies (tree-sitter grammars, provider SDKs, web frameworks) — into one 
 release cadence. Contributors cannot own a subsystem; users cannot install a slim core.
 
 **Recommendation.** Adopt a **uv workspace monorepo** of independently versioned packages using
-the `aegisforge.*` PEP 420 namespace (the model proven by `langchain-core` + partner packages,
+the `cortexward.*` PEP 420 namespace (the model proven by `langchain-core` + partner packages,
 and by Rust/JS monorepos):
 
 ```
 packages/
-  aegisforge-core/        # domain + ports (no I/O, tiny deps)
-  aegisforge-cpg/         # code property graph
-  aegisforge-scanners/    # scanner adapters (extras per tool)
-  aegisforge-llm/         # provider abstraction + adapters
-  aegisforge-orchestrator/
-  aegisforge-cli/
-  aegisforge-server/      # REST + webhooks
-  aegisforge-sdk/
+  cortexward-core/        # domain + ports (no I/O, tiny deps)
+  cortexward-cpg/         # code property graph
+  cortexward-scanners/    # scanner adapters (extras per tool)
+  cortexward-llm/         # provider abstraction + adapters
+  cortexward-orchestrator/
+  cortexward-cli/
+  cortexward-server/      # REST + webhooks
+  cortexward-sdk/
 ```
 
 **Migration cost.** *Low today* — the codebase is ~7 source files. It becomes *high* after
-Phase 4. Mechanically: move `src/aegisforge/domain` → `packages/aegisforge-core/src/aegisforge/
+Phase 4. Mechanically: move `src/cortexward/domain` → `packages/cortexward-core/src/cortexward/
 domain`, add per-package `pyproject.toml`, declare a `[tool.uv.workspace]`. Tests and imports
-are unchanged (`from aegisforge.domain import ...` still works via the namespace).
+are unchanged (`from cortexward.domain import ...` still works via the namespace).
 
 **Long-term benefit.** Independent release/versioning of plugins; slim core install;
 per-subsystem ownership and CI; the natural home for third-party plugin packages.
@@ -77,7 +77,7 @@ Telemetry) but none exist as `typing.Protocol`s. "Pluggable" is currently an asp
 compiler cannot enforce. The first adapter written without a contract will leak its shape into
 callers and quietly become load-bearing.
 
-**Recommendation.** Define the ports as `Protocol`s in `aegisforge-core` **before** any adapter,
+**Recommendation.** Define the ports as `Protocol`s in `cortexward-core` **before** any adapter,
 plus an entry-point-based plugin registry. Adapters then depend on core; core depends on none of
 them. This is the single most important structural safeguard for a plugin platform.
 
@@ -122,7 +122,7 @@ LiteLLM-compatible providers. A naive choice is to depend on LiteLLM as *the* ab
 trades six lock-ins for one.
 
 **Recommendation.** Own a minimal `LLMClient` protocol (structured output, tool-calling, token
-accounting, streaming, cost) in `aegisforge-llm`. Ship *native* adapters for Anthropic and
+accounting, streaming, cost) in `cortexward-llm`. Ship *native* adapters for Anthropic and
 OpenAI, an OpenAI-compatible adapter (covers vLLM and most gateways), an Ollama adapter, and a
 **LiteLLM adapter as a catch-all** — LiteLLM becomes one interchangeable backend, not the spine.
 Add a **cost-aware router** and **versioned, hashed prompts** for provenance.
@@ -149,7 +149,7 @@ other language is an adapter validated against the same conformance test suite.
 ### 2.8 CI/CD gaps — **change soon (infra, not features)**
 
 Current CI is good; for a flagship it is missing: a committed **`uv.lock`** (reproducible
-installs — notably absent), a **coverage threshold gate**, **dogfooding** (run AegisForge/Semgrep
+installs — notably absent), a **coverage threshold gate**, **dogfooding** (run CortexWard/Semgrep
 on itself and upload SARIF to code scanning), **SBOM** generation (CycloneDX), **release
 automation** with signed artifacts and **SLSA provenance/attestations**, Dependabot/Renovate, and
 a broader OS matrix (development is on Windows; CI is Linux-only). These are hygiene, not
@@ -201,8 +201,8 @@ To avoid churn for its own sake, these Phase 1 decisions are ratified:
 
 | # | Action | Verdict | Cost |
 |---|--------|---------|------|
-| 1 | Restructure to uv workspace + `aegisforge.*` namespace | **now** | low |
-| 2 | Land port `Protocol`s + plugin registry in `aegisforge-core` | **now** | low |
+| 1 | Restructure to uv workspace + `cortexward.*` namespace | **now** | low |
+| 2 | Land port `Protocol`s + plugin registry in `cortexward-core` | **now** | low |
 | 3 | Reorder roadmap to benchmark-first; add eval-harness phase | **now** | doc |
 | 4 | Add finding **fingerprint** + `Repository`/`ScanRun`/`RunManifest`/`Detector` to domain | **soon** | med |
 | 5 | Specify persistence (event log + read models) behind `StoragePort` | **soon** | med |

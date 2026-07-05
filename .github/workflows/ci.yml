@@ -44,15 +44,25 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check packages
 
-      - name: Mypy (strict)
-        run: uv run mypy
+      # Run once per package rather than across the whole workspace: every
+      # package's tests/ has its own conftest.py, and with no __init__.py
+      # under tests/ (see pyproject.toml's [tool.pytest.ini_options] note),
+      # a single combined mypy invocation would see two same-named
+      # top-level "conftest" modules and refuse to proceed.
+      - name: Mypy (strict, per package)
+        run: |
+          for pkg in packages/*/; do
+            echo "::group::mypy $pkg"
+            uv run mypy "${pkg}src" "${pkg}tests"
+            echo "::endgroup::"
+          done
 
       - name: Import boundaries (hexagonal architecture)
         run: uv run lint-imports
 
       - name: Pytest (with coverage gate)
         run: |
-          uv run pytest --cov=aegisforge --cov-report=xml --cov-report=term-missing \
+          uv run pytest --cov=cortexward --cov-report=xml --cov-report=term-missing \
             --cov-fail-under=100
 
       - name: Upload coverage artifact
@@ -63,9 +73,9 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-  # Dogfooding: AegisForge scans itself. Bandit stands in for AegisForge's own
-  # scanner adapters (Phase 3); this job is replaced once aegisforge-scanners
-  # exists, at which point `aegis scan .` runs here instead.
+  # Dogfooding: CortexWard scans itself. Bandit stands in for CortexWard's own
+  # scanner adapters (Phase 3); this job is replaced once cortexward-scanners
+  # exists, at which point `ward scan .` runs here instead.
   dogfood:
     name: Dogfood security scan
     runs-on: ubuntu-latest
@@ -79,7 +89,7 @@ jobs:
         run: uvx bandit -r packages/*/src -x "*/tests/*"
 
   # Dependency & secret hygiene, and a software bill of materials, on the
-  # tool's own codebase. AegisForge must hold itself to the standard it
+  # tool's own codebase. CortexWard must hold itself to the standard it
   # enforces on others.
   self-audit:
     name: Self audit (deps · secrets · SBOM)

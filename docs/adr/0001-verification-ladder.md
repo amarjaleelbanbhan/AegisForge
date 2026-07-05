@@ -24,5 +24,5 @@ alone cannot climb the ladder or verify a finding; refutation is first-class neg
 - **Binary exploit-only.** Rejected: narrow coverage, discards partial evidence.
 - **LLM-confidence-only.** Rejected: unverifiable, hallucination-prone.
 
-*Implemented in `aegisforge.domain.verification`. Specified in
+*Implemented in `cortexward.domain.verification`. Specified in
 [MPS §11](../specifications/MPS-v1.0.md#11-verification-ladder-specification).*

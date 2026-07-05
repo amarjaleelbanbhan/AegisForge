@@ -1,6 +1,6 @@
-# Contributing to AegisForge
+# Contributing to CortexWard
 
-Thank you for your interest in AegisForge. This project aims to be a research-grade,
+Thank you for your interest in CortexWard. This project aims to be a research-grade,
 production-quality, community-driven security platform — contributions of code, tests,
 documentation, benchmarks, and research ideas are all welcome.
 
@@ -30,16 +30,22 @@ Run the full quality gate locally before pushing — this is exactly what CI run
 ```bash
 uv run ruff check packages                                  # lint
 uv run ruff format packages                                 # format
-uv run mypy                                                  # strict type check
+for pkg in packages/*/; do uv run mypy "${pkg}src" "${pkg}tests"; done   # strict type check
 uv run lint-imports                                          # hexagonal boundaries
-uv run pytest --cov=aegisforge --cov-fail-under=100          # tests + coverage gate
+uv run pytest --cov=cortexward --cov-fail-under=100          # tests + coverage gate
 ```
+
+Mypy runs once per package rather than across the whole workspace: every package's `tests/` has
+its own `conftest.py`, and since `tests/` directories intentionally have no `__init__.py` (so
+one package's tests don't collide with a sibling's under the shared module name `tests` — see
+the `--import-mode=importlib` note in `pyproject.toml`), a single combined mypy invocation would
+see two same-named top-level `conftest` modules and refuse to proceed.
 
 ## Standards
 
-- **Architecture:** respect the hexagonal boundaries — the domain core (`aegisforge.domain`)
-  and the port catalog (`aegisforge.ports`) must stay pure (no I/O, no adapter imports); the
-  plugin registry (`aegisforge.plugins`) never imports a concrete adapter. New integrations are
+- **Architecture:** respect the hexagonal boundaries — the domain core (`cortexward.domain`)
+  and the port catalog (`cortexward.ports`) must stay pure (no I/O, no adapter imports); the
+  plugin registry (`cortexward.plugins`) never imports a concrete adapter. New integrations are
   adapters implementing a port, registered via `PluginGroup` — see
   [ARCHITECTURE.md](ARCHITECTURE.md). `import-linter` enforces this mechanically in CI; a
   contract failure is a build failure, not a suggestion.
@@ -61,7 +67,7 @@ uv run pytest --cov=aegisforge --cov-fail-under=100          # tests + coverage 
 - Work on feature branches: `feature/<topic>`, `fix/<topic>`, `docs/<topic>`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(scanner): …`,
   `fix(core): …`, `test(graph): …`, `docs(api): …`, `refactor(core): …`, `chore(ci): …`.
-- Keep commits small and logical. Rebautify before merge; keep `main` green.
+- Keep commits small and logical. Rebase before merge; keep `main` green.
 
 ## Pull requests
 

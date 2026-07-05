@@ -1,6 +1,6 @@
 # 001 — The Verification Ladder
 
-**Status:** foundational · partially implemented (`aegisforge.domain.verification`)
+**Status:** foundational · partially implemented (`cortexward.domain.verification`)
 **Theme:** core thesis, evidence-calibrated confidence
 
 ## Problem
@@ -54,5 +54,5 @@ taint (Phase 2/3), and dynamic PoCs (Phase 6).
 
 ## Related
 
-- Implements: [`aegisforge/domain/verification.py`](../src/aegisforge/domain/verification.py)
+- Implements: [`cortexward/domain/verification.py`](../src/cortexward/domain/verification.py)
 - See also: [002 — VEX as a first-class output](002-vex-as-first-class-output.md)

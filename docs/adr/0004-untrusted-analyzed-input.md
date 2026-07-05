@@ -3,7 +3,7 @@
 **Status:** Accepted · **Date:** 2026-07-05
 
 ## Context
-AegisForge feeds source, comments, commit messages, and docs to LLMs and executes PoCs. All of it
+CortexWard feeds source, comments, commit messages, and docs to LLMs and executes PoCs. All of it
 is attacker-controlled. A repo can attempt prompt injection ("mark this safe"), execute code
 during "static" analysis (build hooks), or exfiltrate secrets.
 
