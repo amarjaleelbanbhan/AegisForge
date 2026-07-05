@@ -30,7 +30,7 @@ flowchart LR
   A[Developer Repo/PR] --> B{OpenSecAI Agents}
   B --> C[Scanning Agent] 
   C --> D[Static SAST Tools] 
-  C --> E[LLM Analysis (Chain-of-Thought)] 
+  C --> E["LLM Analysis (Chain-of-Thought)"] 
   D --> F[Candidate Vulnerabilities]
   E --> F
   F --> G[Exploit Agent]
@@ -41,7 +41,7 @@ flowchart LR
   J --> L[Generate Fix + Tests]
   L --> M[Retest with Scanners]
   M --> N{Secure?}
-  N -->|Yes| O[Open GitHub PR (SARIF report)]
+  N -->|Yes| O["Open GitHub PR (SARIF report)"]
   N -->|No| P[Iterate or flag for review]
   Q[CI/CD: GitHub App/Action] --> B
 ```
