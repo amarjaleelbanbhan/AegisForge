@@ -6,6 +6,13 @@ All notable changes to CortexWard are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+- **Project renamed from AegisForge to CortexWard.** AegisForge collided with dozens of existing
+  GitHub projects, several directly in the same space; CortexWard is confirmed clean across
+  GitHub, PyPI, and npm. GitHub repo renamed (About description + topics set); packages renamed
+  to `cortexward-{core,cpg}`; the Python namespace moved from `aegisforge.*` to `cortexward.*`
+  throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
+
 ### Added
 - **Phase 2 (in progress) — Code Property Graph engine.**
   - New workspace package `cortexward-cpg`, depending on `cortexward-core`.
@@ -14,7 +21,12 @@ All notable changes to CortexWard are documented here. The format is based on
   - `cortexward.cpg.graph`: `GraphBuilder` and `InMemoryCodeGraph`, the reference implementation
     of the `CodeGraph` port — cycle-safe `reachable`/`taint`/`callers`/`slice`/`location_of`,
     complete and correct over whatever edges exist even before CFG/DFG/call-graph builders land.
-  - 100%-covered tests including cycle, diamond-revisit, and self-sink cases.
+    Also exposes read-only `nodes`/`edges` accessors for downstream builders.
+  - **Python `LanguageProvider`** (`cortexward.languages.python`): a tree-sitter AST walker
+    producing the CPG's AST layer, `detect`/`dependency_manifests`/`parse`, registered under the
+    `cortexward.languages` entry-point group. Entry points are marked heuristically (`main()`
+    functions, `if __name__ == "__main__":` guards).
+  - 100%-covered tests including cycle, diamond-revisit, self-sink, and unreadable-path cases.
 - **Test infrastructure fix:** adopted pytest's `--import-mode=importlib` and dropped
   `__init__.py` from every package's `tests/` tree, after adding a second workspace package
   revealed a real collision (`tests` as a shared top-level module name). `mypy` now runs once per

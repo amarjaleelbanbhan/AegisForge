@@ -141,9 +141,11 @@ hallucination. Python first; other languages are adapters.
 `cortexward-cpg` (depends on `cortexward-core`) ships the graph engine: `cortexward.cpg.model`
 defines the schema, and `cortexward.cpg.graph` provides `GraphBuilder` plus `InMemoryCodeGraph`
 — the reference `CodeGraph` implementation, with cycle-safe reachability/taint/slice queries.
-This engine is complete and language-agnostic; tree-sitter parsing into it (the Python
-`LanguageProvider`), the CFG/DFG/call-graph builders that populate its edges, and the dependency
-graph are the remaining Phase 2 work.
+It also ships the Python reference `LanguageProvider` (`cortexward.languages.python`), which
+walks a tree-sitter parse tree into the schema's AST layer (`AST_CHILD` edges only) and marks
+entry points heuristically. The CFG/DFG/call-graph builders that populate `CFG_NEXT`/
+`DFG_REACHES`/`CALLS` on top of this AST layer, plus the dependency graph, are the remaining
+Phase 2 work.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 

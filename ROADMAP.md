@@ -47,7 +47,11 @@ API, and a dependency graph. Python first.
   cycle-safe `reachable`/`taint`/`callers`/`slice`/`location_of` queries. Complete and correct
   over whatever edges exist; a graph built from AST alone honestly reports no control/data paths
   until the builders below populate more edges.
-- ⏳ Python `LanguageProvider`: tree-sitter AST parsing into the schema above.
+- ✅ **Python `LanguageProvider`** (`cortexward.languages.python`): tree-sitter AST parsing into
+  the schema above — `detect`/`dependency_manifests`/`parse`, registered under the
+  `cortexward.languages` entry-point group. Entry points are marked heuristically (`main()`
+  functions and `if __name__ == "__main__":` guards); framework-specific route/handler detection
+  is future work.
 - ⏳ Control-flow graph builder (populates `CFG_NEXT`).
 - ⏳ Data-flow / def-use graph builder (populates `DFG_REACHES`) — enables real taint analysis.
 - ⏳ Call graph builder (populates `CALLS`) and dependency-manifest parsing.

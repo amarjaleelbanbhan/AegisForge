@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 import pytest
 
-from cortexward.cpg import EdgeKind, GraphBuilder, InMemoryCodeGraph, NodeKind
+from cortexward.cpg import Edge, EdgeKind, GraphBuilder, InMemoryCodeGraph, NodeKind
 from cortexward.domain import SourceLocation
 from cortexward.ports import CodeGraph
 
@@ -216,3 +216,24 @@ class TestCycleSafety:
         graph = builder.build()
 
         assert graph.reachable(["entry"], "sink") is True
+
+
+class TestNodesAndEdgesAccessors:
+    def test_nodes_returns_every_added_node(self, sql_injection_graph: InMemoryCodeGraph) -> None:
+        assert set(sql_injection_graph.nodes) == {
+            "fn:handler",
+            "param:query",
+            "call:build_query",
+            "fn:build_query",
+            "var:sql",
+            "call:execute",
+            "fn:unrelated",
+        }
+
+    def test_nodes_view_is_read_only(self, sql_injection_graph: InMemoryCodeGraph) -> None:
+        with pytest.raises(TypeError):
+            sql_injection_graph.nodes["new"] = sql_injection_graph.nodes["fn:handler"]  # type: ignore[index]
+
+    def test_edges_returns_every_added_edge(self, sql_injection_graph: InMemoryCodeGraph) -> None:
+        assert len(sql_injection_graph.edges) == 6
+        assert all(isinstance(e, Edge) for e in sql_injection_graph.edges)

@@ -22,7 +22,8 @@ results.
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from types import MappingProxyType
 
 from cortexward.cpg.model import Edge, EdgeKind, Node, NodeKind
 from cortexward.domain import SourceLocation
@@ -117,6 +118,22 @@ class InMemoryCodeGraph:
     @property
     def language(self) -> str:
         return self._language
+
+    @property
+    def nodes(self) -> Mapping[NodeId, Node]:
+        """Read-only view of every node in this graph, keyed by id.
+
+        Not part of the ``CodeGraph`` port — an extra capability this
+        reference implementation offers, used by downstream builders (CFG,
+        DFG, call-graph) that need to enumerate nodes by kind while
+        populating further edges on top of this same graph.
+        """
+        return MappingProxyType(self._nodes)
+
+    @property
+    def edges(self) -> tuple[Edge, ...]:
+        """Every edge in this graph, in insertion order. See :attr:`nodes`."""
+        return self._edges
 
     def _require(self, node_id: NodeId) -> None:
         if node_id not in self._nodes:

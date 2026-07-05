@@ -28,11 +28,16 @@ classifiers = [
 dependencies = [
   "cortexward-core",
   "pydantic>=2.7,<3",
+  "tree-sitter>=0.23,<1",
+  "tree-sitter-python>=0.23,<1",
 ]
 
 [project.urls]
 Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
 Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[project.entry-points."cortexward.languages"]
+python = "cortexward.languages.python:PythonLanguageProvider"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }
