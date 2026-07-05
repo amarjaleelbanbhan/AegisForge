@@ -1,9 +1,9 @@
 # AegisForge Architecture
 
 > **⚠️ This document is now a summary.** The single source of truth for architecture is the
-> **[Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)** (RFC). Once the MPS is
-> approved, the architecture is **frozen** and changes only via
-> [ADRs](docs/adr/README.md). Where this summary and the MPS differ, the MPS wins. See also the
+> **[Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)**, which is **approved
+> and frozen**. Changes happen only via [ADRs](docs/adr/README.md). Where this summary and the
+> MPS differ, the MPS wins. See also the
 > [Phase-1 technical review](docs/reviews/2026-07-05-phase-1-architecture-review.md).
 
 This document gives a fast orientation to the architecture, the reasoning behind the major
@@ -11,7 +11,7 @@ decisions, and how the pieces fit together. For normative contracts (ports, doma
 security, data/DB design, APIs, evaluation), read the MPS.
 
 > **Audience:** engineers extending AegisForge, and reviewers evaluating its design.
-> **Status:** living summary. Phase 1 subsystems are implemented; later phases are
+> **Status:** living summary. Phase 1 and 1.5 subsystems are implemented; later phases are
 > specified as contracts in the MPS before they are built.
 
 ---
@@ -58,23 +58,30 @@ AegisForge follows **hexagonal (ports & adapters)** architecture with a pure dom
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│ Interfaces        CLI · REST API · GitHub App · VS Code extension    │
+│ Interfaces        CLI · REST API · GitHub App · VS Code extension    │  aegisforge-{cli,server,sdk}
 ├────────────────────────────────────────────────────────────────────┤
-│ Application       Orchestrator (state machine)                       │
+│ Application       Orchestrator (state machine)                       │  aegisforge-orchestrator
 │                   Planner → Scanner → Verifier → Repair → Reviewer   │
 │                   Coordinator · Memory                               │
 ├────────────────────────────────────────────────────────────────────┤
-│ Domain core       Finding · Evidence · Verification Ladder ·         │
-│ (pure, no I/O)    Patch · Provenance · Assessment                    │
+│ Domain core       Finding · Evidence · Verification Ladder ·         │  ┐
+│ (pure, no I/O)    Patch · Provenance · Assessment                    │  │
+├────────────────────────────────────────────────────────────────────┤  │ aegisforge-core
+│ Ports             CodeGraph · LanguageProvider · Scanner · LLM ·      │  │ (implemented,
+│ (Protocols)       Sandbox · VCS · Storage · Telemetry ·               │  │  Phase 1/1.5)
+│                   Orchestrator · Reporter                             │  │
+├────────────────────────────────────────────────────────────────────┤  │
+│ Plugin registry   Entry-point discovery (aegisforge.plugins)          │  ┘
 ├────────────────────────────────────────────────────────────────────┤
-│ Ports             CodeGraph · Scanner · LLM · Sandbox ·              │
-│ (interfaces)      VCS · Storage · Telemetry                          │
-├────────────────────────────────────────────────────────────────────┤
-│ Adapters          tree-sitter CPG · Semgrep/Bandit/CodeQL ·          │
-│                   Anthropic/OpenAI/Ollama · Docker/gVisor · PyGithub │
+│ Adapters          tree-sitter CPG · Semgrep/Bandit/CodeQL ·          │  aegisforge-{cpg,scanners,
+│                   Anthropic/OpenAI/Ollama · Docker/gVisor · PyGithub │  llm,sandbox,storage}
 │                   · SQLite/Postgres+pgvector · OpenTelemetry          │
 └────────────────────────────────────────────────────────────────────┘
 ```
+
+Each row below "Interfaces" that says *(implemented)* lives in `packages/aegisforge-core/`
+today; every other row is a sibling package added under `packages/` as its phase lands
+([ADR-0005](docs/adr/0005-uv-workspace-monorepo.md)).
 
 **Why in-process orchestration and not microservices?** The research brief proposed
 microservices + a message queue. For a tool people install and run in CI, that is premature
@@ -85,9 +92,18 @@ not a founding assumption. Modularity comes from interfaces, not network hops.
 ### Plugin model
 
 Everything crossing a port is discovered via Python **entry points**
-(`importlib.metadata`). Adding a scanner, a language front-end, a verifier, or an LLM backend
-is a matter of shipping a package that registers under the relevant entry-point group — no
-core changes required.
+(`importlib.metadata`), through the registry in `aegisforge.plugins`. Adding a scanner, a
+language front-end, a verifier, or an LLM backend is a matter of shipping a package that
+registers under the relevant `PluginGroup` — no core changes required. The registry never
+imports an adapter package directly; it resolves entry points by name at runtime.
+
+### Import boundaries
+
+The dependency direction above is enforced mechanically, not just by convention:
+**import-linter** contracts (in the root `pyproject.toml`) forbid `aegisforge.domain` and
+`aegisforge.ports` from importing any adapter, application, or interface package, and a
+`layers` contract fixes `plugins > ports > domain`. `uv run lint-imports` runs in CI on every
+push.
 
 ## 4. Subsystems
 
@@ -102,6 +118,18 @@ Pure model and services with no I/O:
 
 Findings are updated functionally (`with_evidence`, `with_state`) so no agent mutates shared
 state by accident; the orchestrator threads new values explicitly.
+
+### 4.1b Port catalog & plugin registry (`aegisforge.ports`, `aegisforge.plugins`) — *implemented*
+
+The full port catalog from MPS §17.1 exists today as `typing.Protocol` contracts, each owning
+its own small request/response DTOs so the domain model stays free of port concerns:
+`LanguageProvider`, `CodeGraph`, `ScannerPort`, `LLMPort`/`EmbeddingPort`, `SandboxPort`,
+`VCSPort`, `StoragePort`, `TelemetryPort`, `OrchestratorPort`, `ReporterPort`. No adapters
+exist yet — these are the contracts future scanner/LLM/sandbox/VCS packages implement against.
+
+`aegisforge.plugins` provides `PluginGroup` (the canonical entry-point group per port) and
+`PluginRegistry`, which discovers and lazily loads adapters via `importlib.metadata` entry
+points. The registry never imports a concrete adapter package.
 
 ### 4.2 Code intelligence (Phase 2) — *planned*
 
@@ -178,6 +206,8 @@ framework). This is not optional polish: the ablation studies the research plan 
 | Storage | SQLite → Postgres+pgvector | Zero-config local; scales up on demand. |
 | Observability | OpenTelemetry + structlog | Trace every step; research-grade instrumentation. |
 | Tooling | uv, Ruff, mypy (strict), pytest+hypothesis | Fast, strict, property-tested. |
+| Workspace | uv workspace monorepo, `aegisforge.*` namespace | Independently versioned packages; slim core install. |
+| Import boundaries | import-linter | Mechanically enforces the hexagonal dependency direction. |
 | License | Apache-2.0 | Permissive with a patent grant. |
 
 ## 7. Decision log
@@ -192,5 +222,15 @@ Significant, hard-to-reverse decisions are recorded as short ADR-style entries. 
   ladder's core question. (Accepted.)
 - **ADR-0004 — Treat analyzed code as hostile input.** Prompt-injection and build-execution
   defenses are foundational, not add-ons. (Accepted.)
+- **ADR-0005 — uv workspace monorepo.** Independently versioned packages under `packages/`
+  behind the `aegisforge.*` namespace; done in Phase 1.5 while migration was still cheap.
+  (Accepted.)
+- **ADR-0006 — Own the LLM abstraction.** Providers (Anthropic, OpenAI, Gemini, Ollama,
+  OpenAI-compatible, LiteLLM) are interchangeable adapters behind `LLMPort`. (Accepted.)
+- **ADR-0007 — Benchmark-first roadmap ordering.** The evaluation harness lands at Phase 3.5,
+  before the agent framework. (Accepted.)
+- **ADR-0008 — Event-sourced findings.** An append-only event log with materialized state,
+  matching the domain core's functional update style. (Accepted.)
 
-Future ADRs live alongside the code they govern as the project grows.
+Future ADRs live alongside the code they govern as the project grows. See the
+[full ADR index](docs/adr/README.md) for details on each decision.

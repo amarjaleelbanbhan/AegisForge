@@ -1,0 +1,52 @@
+# aegisforge-core — the pure domain model, port contracts, and plugin
+# registry. Every AegisForge installation depends on this package; it in turn
+# depends on nothing beyond pydantic (ADR-0005).
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aegisforge-core"
+version = "0.1.0.dev0"
+description = "AegisForge domain core: findings, the Verification Ladder, port contracts, and the plugin registry."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "AegisForge Contributors" }]
+keywords = [
+  "security",
+  "sast",
+  "llm",
+  "agents",
+  "vulnerability",
+  "code-analysis",
+  "sarif",
+  "vex",
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+# The domain core is intentionally minimal: it depends only on pydantic.
+# Heavier subsystems (tree-sitter, LangGraph, scanners, provider SDKs) live in
+# sibling packages that depend on this one, never the reverse.
+dependencies = [
+  "pydantic>=2.7,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/AegisForge"
+Documentation = "https://github.com/amarjaleelbanbhan/AegisForge/tree/main/docs"
+Repository = "https://github.com/amarjaleelbanbhan/AegisForge"
+Issues = "https://github.com/amarjaleelbanbhan/AegisForge/issues"
+Changelog = "https://github.com/amarjaleelbanbhan/AegisForge/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aegisforge"]
