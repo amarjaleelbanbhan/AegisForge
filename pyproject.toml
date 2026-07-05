@@ -34,7 +34,10 @@ members = ["packages/*"]
 line-length = 100
 target-version = "py311"
 # Extend this list as new packages/<name>/{src,tests} directories are added.
-src = ["packages/aegisforge-core/src", "packages/aegisforge-core/tests"]
+src = [
+  "packages/aegisforge-core/src", "packages/aegisforge-core/tests",
+  "packages/aegisforge-cpg/src", "packages/aegisforge-cpg/tests",
+]
 
 [tool.ruff.lint]
 select = [
@@ -64,6 +67,15 @@ known-first-party = ["aegisforge", "tests"]
 # ---------------------------------------------------------------------------
 # mypy — strict typing across the workspace.
 # ---------------------------------------------------------------------------
+# mypy is invoked once per package (see the `mypy` CI step / CONTRIBUTING.md),
+# not with every package's tests/ in one run: each package's tests/ has its
+# own conftest.py, and with no __init__.py under tests/ (required so sibling
+# packages' tests/ trees don't collide as the top-level module "tests" — see
+# the pytest importlib note above), mypy would otherwise see two same-named
+# top-level "conftest" modules and refuse to proceed. mypy_path still spans
+# every package's src/ so cross-package imports (e.g. aegisforge-cpg
+# importing aegisforge.domain/aegisforge.ports from aegisforge-core) resolve
+# regardless of which package is being checked.
 [tool.mypy]
 python_version = "3.11"
 strict = true
@@ -72,8 +84,7 @@ warn_redundant_casts = true
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
-mypy_path = ["packages/aegisforge-core/src"]
-files = ["packages/aegisforge-core/src", "packages/aegisforge-core/tests"]
+mypy_path = ["packages/aegisforge-core/src", "packages/aegisforge-cpg/src"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -89,8 +100,12 @@ warn_required_dynamic_aliases = true
 # ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra --strict-markers --strict-config"
-testpaths = ["packages/aegisforge-core/tests"]
+# importlib import mode identifies test modules by file path rather than by a
+# dotted package name inserted into sys.path. Every workspace package has its
+# own tests/ directory; without this, two packages' tests/ trees would both
+# claim the top-level module name "tests" and collide in sys.modules.
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+testpaths = ["packages/aegisforge-core/tests", "packages/aegisforge-cpg/tests"]
 markers = [
   "unit: fast, isolated unit tests",
   "integration: cross-component integration tests",
@@ -169,4 +184,19 @@ forbidden_modules = [
   "aegisforge.orchestrator",
   "aegisforge.sandbox",
   "aegisforge.storage",
+]
+
+[[tool.importlinter.contracts]]
+name = "CPG engine does not depend on other adapters or interfaces"
+type = "forbidden"
+source_modules = ["aegisforge.cpg"]
+forbidden_modules = [
+  "aegisforge.scanners",
+  "aegisforge.llm",
+  "aegisforge.orchestrator",
+  "aegisforge.sandbox",
+  "aegisforge.storage",
+  "aegisforge.cli",
+  "aegisforge.server",
+  "aegisforge.sdk",
 ]

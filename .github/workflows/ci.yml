@@ -44,8 +44,18 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check packages
 
-      - name: Mypy (strict)
-        run: uv run mypy
+      # Run once per package rather than across the whole workspace: every
+      # package's tests/ has its own conftest.py, and with no __init__.py
+      # under tests/ (see pyproject.toml's [tool.pytest.ini_options] note),
+      # a single combined mypy invocation would see two same-named
+      # top-level "conftest" modules and refuse to proceed.
+      - name: Mypy (strict, per package)
+        run: |
+          for pkg in packages/*/; do
+            echo "::group::mypy $pkg"
+            uv run mypy "${pkg}src" "${pkg}tests"
+            echo "::endgroup::"
+          done
 
       - name: Import boundaries (hexagonal architecture)
         run: uv run lint-imports

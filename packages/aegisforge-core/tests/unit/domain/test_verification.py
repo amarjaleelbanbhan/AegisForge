@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from aegisforge.domain import (
+    Evidence,
     EvidenceKind,
+    Finding,
     FindingState,
     VerificationRung,
     VexStatus,
@@ -16,19 +20,23 @@ from aegisforge.domain import (
     calibrate_confidence,
 )
 from aegisforge.domain.verification import REFUTED_THRESHOLD, VERIFIED_THRESHOLD
-from tests.conftest import make_evidence, make_finding
 
 pytestmark = pytest.mark.unit
 
+MakeEvidence = Callable[..., Evidence]
+MakeFinding = Callable[..., Finding]
+
 
 class TestAssessmentOutcomes:
-    def test_no_evidence_is_low_confidence_candidate(self) -> None:
+    def test_no_evidence_is_low_confidence_candidate(self, make_finding: MakeFinding) -> None:
         result = assess(make_finding())
         assert result.confidence < 0.5
         assert result.recommended_state is FindingState.CANDIDATE
         assert result.vex_status is VexStatus.UNDER_INVESTIGATION
 
-    def test_lone_static_match_stays_candidate(self) -> None:
+    def test_lone_static_match_stays_candidate(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(make_evidence(EvidenceKind.STATIC_MATCH))
         result = assess(finding)
         # A single pattern match is barely above a coin flip and must not, by
@@ -36,7 +44,9 @@ class TestAssessmentOutcomes:
         assert result.recommended_state is FindingState.CANDIDATE
         assert result.highest_rung is VerificationRung.NONE
 
-    def test_taint_trace_reaches_verified(self) -> None:
+    def test_taint_trace_reaches_verified(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(
             make_evidence(EvidenceKind.STATIC_MATCH),
             make_evidence(EvidenceKind.TAINT_TRACE, rung=VerificationRung.TAINT_CONFIRMED),
@@ -46,7 +56,9 @@ class TestAssessmentOutcomes:
         assert result.recommended_state is FindingState.VERIFIED
         assert result.has_independent_corroboration is True
 
-    def test_dynamic_poc_is_affected(self) -> None:
+    def test_dynamic_poc_is_affected(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(
             make_evidence(EvidenceKind.EXPLOIT_POC, rung=VerificationRung.DYNAMIC_POC),
         )
@@ -54,7 +66,9 @@ class TestAssessmentOutcomes:
         assert result.vex_status is VexStatus.AFFECTED
         assert result.recommended_state is FindingState.VERIFIED
 
-    def test_refutation_drives_not_affected(self) -> None:
+    def test_refutation_drives_not_affected(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(
             make_evidence(EvidenceKind.STATIC_MATCH),
             make_evidence(EvidenceKind.REFUTATION, supports=False),
@@ -66,7 +80,9 @@ class TestAssessmentOutcomes:
 
 
 class TestLlmPolicy:
-    def test_llm_alone_cannot_verify(self) -> None:
+    def test_llm_alone_cannot_verify(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         # Even an overwhelmingly confident model assertion may not climb the
         # ladder or be marked VERIFIED without independent corroboration.
         finding = make_finding(
@@ -78,7 +94,9 @@ class TestLlmPolicy:
         assert result.recommended_state is not FindingState.VERIFIED
         assert result.confidence <= 0.65
 
-    def test_llm_rung_is_ignored_for_ladder(self) -> None:
+    def test_llm_rung_is_ignored_for_ladder(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         # An LLM claiming a high rung must not count toward the independent rung.
         finding = make_finding(
             make_evidence(EvidenceKind.LLM_ASSESSMENT, rung=VerificationRung.DYNAMIC_POC),
@@ -87,7 +105,9 @@ class TestLlmPolicy:
 
 
 class TestTerminalStates:
-    def test_patched_maps_to_fixed_and_is_preserved(self) -> None:
+    def test_patched_maps_to_fixed_and_is_preserved(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(
             make_evidence(EvidenceKind.EXPLOIT_POC, rung=VerificationRung.DYNAMIC_POC),
         ).with_state(FindingState.PATCHED)
@@ -95,7 +115,9 @@ class TestTerminalStates:
         assert result.recommended_state is FindingState.PATCHED
         assert result.vex_status is VexStatus.FIXED
 
-    def test_dismissed_is_preserved(self) -> None:
+    def test_dismissed_is_preserved(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(
             make_evidence(EvidenceKind.EXPLOIT_POC, rung=VerificationRung.DYNAMIC_POC),
         ).with_state(FindingState.DISMISSED)
@@ -103,7 +125,9 @@ class TestTerminalStates:
 
 
 class TestApplyAssessment:
-    def test_apply_transitions_state(self) -> None:
+    def test_apply_transitions_state(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         finding = make_finding(
             make_evidence(EvidenceKind.STATIC_MATCH),
             make_evidence(EvidenceKind.TAINT_TRACE, rung=VerificationRung.TAINT_CONFIRMED),
@@ -111,7 +135,9 @@ class TestApplyAssessment:
         assert finding.state is FindingState.CANDIDATE
         assert apply_assessment(finding).state is FindingState.VERIFIED
 
-    def test_lone_taint_trace_is_triaged_not_verified(self) -> None:
+    def test_lone_taint_trace_is_triaged_not_verified(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
         # A single taint trace with no corroborating detection lands just below
         # the verified threshold — a deliberate, conservative calibration.
         finding = make_finding(
@@ -133,19 +159,32 @@ _SUPPORTING_KINDS = st.sampled_from(
 )
 
 
+# make_evidence is a pure, stateless factory (each call returns a fresh,
+# independent Evidence with no shared state), so reusing the same fixture
+# instance across generated examples is safe; the health check exists for
+# fixtures with state or side effects, which this is not.
+_SUPPRESS_FIXTURE_HEALTH_CHECK = settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
+
+
+@_SUPPRESS_FIXTURE_HEALTH_CHECK
 @given(
     base=st.lists(_SUPPORTING_KINDS, max_size=6),
     extra=_SUPPORTING_KINDS,
 )
-def test_supporting_evidence_is_monotonic(base: list[EvidenceKind], extra: EvidenceKind) -> None:
+def test_supporting_evidence_is_monotonic(
+    base: list[EvidenceKind], extra: EvidenceKind, make_evidence: MakeEvidence
+) -> None:
     """Adding supporting evidence never lowers calibrated confidence."""
     base_ev = tuple(make_evidence(k) for k in base)
     with_extra = (*base_ev, make_evidence(extra))
     assert calibrate_confidence(with_extra) >= calibrate_confidence(base_ev) - 1e-12
 
 
+@_SUPPRESS_FIXTURE_HEALTH_CHECK
 @given(kinds=st.lists(_SUPPORTING_KINDS, max_size=8))
-def test_confidence_is_bounded(kinds: list[EvidenceKind]) -> None:
+def test_confidence_is_bounded(kinds: list[EvidenceKind], make_evidence: MakeEvidence) -> None:
     """Confidence always lands in the unit interval."""
     conf = calibrate_confidence(tuple(make_evidence(k) for k in kinds))
     assert 0.0 <= conf <= 1.0

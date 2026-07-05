@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "aegisforge-core",
+    "aegisforge-cpg",
     "aegisforge-workspace",
 ]
 
@@ -22,6 +23,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "pydantic", specifier = ">=2.7,<3" }]
+
+[[package]]
+name = "aegisforge-cpg"
+version = "0.1.0.dev0"
+source = { editable = "packages/aegisforge-cpg" }
+dependencies = [
+    { name = "aegisforge-core" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aegisforge-core", editable = "packages/aegisforge-core" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
+]
 
 [[package]]
 name = "aegisforge-workspace"

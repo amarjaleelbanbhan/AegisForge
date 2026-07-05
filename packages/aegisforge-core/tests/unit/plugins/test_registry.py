@@ -1,13 +1,24 @@
 """Tests for the entry-point-driven plugin registry.
 
 Uses real ``importlib.metadata.EntryPoint`` objects pointing at fixture
-classes defined in this module, with only ``metadata.entry_points`` itself
-monkeypatched — so ``PluginRegistry.load`` performs a genuine dynamic import,
-proving discovery actually works end to end rather than being faked.
+classes, with only ``metadata.entry_points`` itself monkeypatched — so
+``PluginRegistry.load`` performs a genuine dynamic import, proving discovery
+actually works end to end rather than being faked.
+
+The fixtures live in a small synthetic module registered directly into
+``sys.modules`` rather than this test file itself: under
+``--import-mode=importlib`` (used so sibling packages' ``tests/`` trees
+don't collide, see pyproject.toml) pytest derives each test module's dotted
+name from its file path, which here would include the hyphenated directory
+``aegisforge-core`` — not a valid Python identifier, and not usable as an
+entry point's ``module:attr`` target. Registering our own cleanly-named
+module sidesteps that entirely.
 """
 
 from __future__ import annotations
 
+import sys
+import types
 from importlib import metadata
 
 import pytest
@@ -16,6 +27,8 @@ import aegisforge.plugins.registry as registry_module
 from aegisforge.plugins import PluginGroup, PluginNotFoundError, PluginRegistry, registry_for
 
 pytestmark = pytest.mark.unit
+
+_FIXTURE_MODULE_NAME = "aegisforge_plugin_registry_test_fixtures"
 
 
 class _FixtureScanner:
@@ -30,19 +43,30 @@ class _NotCallable:
 _NOT_CALLABLE_INSTANCE = _NotCallable()
 
 
+def _install_fixture_module() -> None:
+    """Register a real, importable module holding the fixture objects."""
+    module = types.ModuleType(_FIXTURE_MODULE_NAME)
+    module.__dict__["_FixtureScanner"] = _FixtureScanner
+    module.__dict__["_NOT_CALLABLE_INSTANCE"] = _NOT_CALLABLE_INSTANCE
+    sys.modules[_FIXTURE_MODULE_NAME] = module
+
+
+_install_fixture_module()
+
+
 def _fake_entry_points(*, group: str) -> tuple[metadata.EntryPoint, ...]:
     catalog: dict[str, tuple[metadata.EntryPoint, ...]] = {
         "aegisforge.scanners": (
             metadata.EntryPoint(
                 name="fixture",
-                value="tests.unit.plugins.test_registry:_FixtureScanner",
+                value=f"{_FIXTURE_MODULE_NAME}:_FixtureScanner",
                 group="aegisforge.scanners",
             ),
         ),
         "aegisforge.llm": (
             metadata.EntryPoint(
                 name="broken",
-                value="tests.unit.plugins.test_registry:_NOT_CALLABLE_INSTANCE",
+                value=f"{_FIXTURE_MODULE_NAME}:_NOT_CALLABLE_INSTANCE",
                 group="aegisforge.llm",
             ),
         ),

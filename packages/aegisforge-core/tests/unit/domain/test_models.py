@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 from pydantic import ValidationError
 
 from aegisforge.domain import (
+    Evidence,
     EvidenceKind,
+    Finding,
     FindingState,
     Patch,
     Provenance,
     Severity,
     SourceLocation,
 )
-from tests.conftest import make_evidence, make_finding
 
 pytestmark = pytest.mark.unit
 
@@ -72,13 +75,15 @@ class TestSourceLocation:
 
 
 class TestFinding:
-    def test_defaults(self) -> None:
+    def test_defaults(self, make_finding: Callable[..., Finding]) -> None:
         finding = make_finding()
         assert finding.state is FindingState.CANDIDATE
         assert finding.id.startswith("find_")
         assert finding.cwe == 89
 
-    def test_with_evidence_is_immutable(self) -> None:
+    def test_with_evidence_is_immutable(
+        self, make_finding: Callable[..., Finding], make_evidence: Callable[..., Evidence]
+    ) -> None:
         finding = make_finding()
         updated = finding.with_evidence(make_evidence())
         assert len(finding.evidence) == 0
@@ -86,21 +91,21 @@ class TestFinding:
         assert updated.id == finding.id
         assert updated.updated_at >= finding.updated_at
 
-    def test_with_evidence_noop_without_args(self) -> None:
+    def test_with_evidence_noop_without_args(self, make_finding: Callable[..., Finding]) -> None:
         finding = make_finding()
         assert finding.with_evidence() is finding
 
-    def test_with_state_transition(self) -> None:
+    def test_with_state_transition(self, make_finding: Callable[..., Finding]) -> None:
         finding = make_finding()
         moved = finding.with_state(FindingState.VERIFIED)
         assert finding.state is FindingState.CANDIDATE
         assert moved.state is FindingState.VERIFIED
 
-    def test_with_state_same_is_noop(self) -> None:
+    def test_with_state_same_is_noop(self, make_finding: Callable[..., Finding]) -> None:
         finding = make_finding()
         assert finding.with_state(FindingState.CANDIDATE) is finding
 
-    def test_rejects_unknown_fields(self) -> None:
+    def test_rejects_unknown_fields(self, make_finding: Callable[..., Finding]) -> None:
         with pytest.raises(ValidationError):
             make_finding().model_copy(update={"nonexistent": 1}).model_validate(
                 {**make_finding().model_dump(), "nonexistent": 1}
@@ -129,7 +134,7 @@ class TestPatch:
         )
 
 
-def test_evidence_direction_defaults_to_support() -> None:
+def test_evidence_direction_defaults_to_support(make_evidence: Callable[..., Evidence]) -> None:
     ev = make_evidence(EvidenceKind.STATIC_MATCH)
     assert ev.supports is True
     assert ev.id.startswith("ev_")

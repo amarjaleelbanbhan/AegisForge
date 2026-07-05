@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import pytest
 
 from aegisforge.domain import Finding
 from aegisforge.ports import RenderedArtifact, ReporterPort
-from tests.conftest import make_finding
 
 pytestmark = pytest.mark.unit
 
@@ -26,7 +25,7 @@ def test_fake_reporter_satisfies_protocol() -> None:
     assert isinstance(_FakeJsonReporter(), ReporterPort)
 
 
-def test_render_includes_every_finding() -> None:
+def test_render_includes_every_finding(make_finding: Callable[..., Finding]) -> None:
     findings = (make_finding(), make_finding())
     artifact = _FakeJsonReporter().render(findings)
     decoded = json.loads(artifact.content)
