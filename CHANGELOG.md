@@ -7,6 +7,20 @@ All notable changes to AegisForge are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Phase 1.5 — Workspace & contracts.**
+  - Restructured into a **uv workspace monorepo**: `packages/aegisforge-core/` is the first
+    independently versioned package; `aegisforge` is now a PEP 420 namespace package so future
+    packages (`aegisforge-cpg`, `aegisforge-llm`, ...) can each contribute a subpackage without
+    conflict (`ADR-0005`). Package version moves to `aegisforge.core.version()`.
+  - The full **port catalog** (`aegisforge.ports`) as `typing.Protocol` contracts:
+    `LanguageProvider`, `CodeGraph`, `ScannerPort`, `LLMPort`/`EmbeddingPort`, `SandboxPort`,
+    `VCSPort`, `StoragePort`, `TelemetryPort`, `OrchestratorPort`, `ReporterPort` — each with a
+    conformance test.
+  - The **plugin registry** (`aegisforge.plugins`): entry-point-based discovery and lazy loading
+    of adapters, with zero core changes required to add a new plugin.
+  - **import-linter** contracts mechanically enforcing the hexagonal dependency direction.
+  - CI hardened for the workspace: `uv sync --all-packages`, a 100% coverage gate, an
+    import-boundary check, a dogfood Bandit scan, and a CycloneDX SBOM artifact.
 - **Master Project Specification v1.0** (`docs/specifications/MPS-v1.0.md`) — the single source of
   truth (RFC): vision, requirements, system/component/agent architecture, domain model, CPG spec,
   LLM abstraction + routing, prompt/memory architecture, patch pipeline, plugin/port catalog,
@@ -37,4 +51,4 @@ All notable changes to AegisForge are documented here. The format is based on
   - Open-source governance: `README`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`,
     `GOVERNANCE`, issue/PR templates, `Dockerfile`, and a devcontainer.
 
-[Unreleased]: https://github.com/aegisforge/aegisforge/commits/main
+[Unreleased]: https://github.com/amarjaleelbanbhan/AegisForge/commits/main

@@ -15,12 +15,14 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /app
 
-# Create the venv, then install dependencies first (better layer caching),
-# then the project itself.
+# Create the venv, then install the package. aegisforge-core is
+# self-contained (its own pyproject.toml, README, SPDX license identifier)
+# so it builds without the workspace root manifest (ADR-0005). As sibling
+# packages (aegisforge-cli, aegisforge-server, ...) are implemented, add
+# their COPY + install lines here too.
 RUN uv venv "$VIRTUAL_ENV"
-COPY pyproject.toml README.md LICENSE ./
-COPY src ./src
-RUN uv pip install .
+COPY packages/aegisforge-core ./aegisforge-core
+RUN uv pip install ./aegisforge-core
 
 # --- Runtime ---------------------------------------------------------------
 FROM python:3.12-slim AS runtime
@@ -41,4 +43,4 @@ USER aegis
 WORKDIR /workspace
 
 # Sanity check on build; replaced by the CLI entry point in a later phase.
-CMD ["python", "-c", "import aegisforge; print('AegisForge', aegisforge.__version__)"]
+CMD ["python", "-c", "from aegisforge.core import version; print('AegisForge', version())"]
