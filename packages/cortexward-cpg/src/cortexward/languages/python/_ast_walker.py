@@ -9,6 +9,7 @@ walk this same AST layer; this module does not fabricate them.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from itertools import count
 
 from tree_sitter import Node as TSNode
@@ -16,6 +17,40 @@ from tree_sitter import Node as TSNode
 from cortexward.cpg import EdgeKind, GraphBuilder, NodeKind
 from cortexward.domain import SourceLocation
 from cortexward.ports import NodeId
+
+TSNodeKey = tuple[int, int, str]
+"""A stable identity key for a tree-sitter node: (start_byte, end_byte, type).
+
+tree-sitter's Python ``Node`` wrapper objects are not necessarily the same
+*object* across separate accesses to "the same" underlying node (they can be
+recreated on each attribute access), so ``id(ts_node)`` is not a safe cross-
+pass identity — a wrapper object can be garbage-collected and its address
+reused, silently aliasing an unrelated later node. ``(start_byte, end_byte,
+type)`` is intrinsic to the node's position and kind, stable across any
+number of separate traversals of the same parse tree. A wrapper node sharing
+its child's exact byte range (e.g. ``expression_statement`` around a lone
+``call``) is still disambiguated by ``type``.
+"""
+
+
+def ts_node_key(ts_node: TSNode) -> TSNodeKey:
+    return (ts_node.start_byte, ts_node.end_byte, ts_node.type)
+
+
+@dataclass
+class WalkResult:
+    """The output of one :func:`walk_module` call.
+
+    ``node_ids`` maps each tree-sitter node (by its stable :data:`TSNodeKey`,
+    via :func:`ts_node_key`) to the graph :data:`NodeId` created for it. Later
+    passes over the *same* tree (e.g. the control-flow builder) use this to
+    attach further edges to the exact nodes the AST layer already created,
+    without recomputing or guessing the id scheme.
+    """
+
+    module_id: NodeId
+    node_ids: dict[TSNodeKey, NodeId] = field(default_factory=dict)
+
 
 # Direct mapping from a tree-sitter node type to our language-agnostic schema.
 # Types not listed here fall back to NodeKind.OTHER — a faithful "we parsed
@@ -103,8 +138,8 @@ def walk_module(
     source: bytes,
     file_path: str,
     builder: GraphBuilder,
-) -> NodeId:
-    """Walk one file's parse tree into `builder`, returning its module node id.
+) -> WalkResult:
+    """Walk one file's parse tree into `builder`, returning a :class:`WalkResult`.
 
     Marks entry points heuristically: functions named ``main`` and
     ``if __name__ == "__main__":`` guards. This is a starting heuristic, not
@@ -112,9 +147,11 @@ def walk_module(
     are future work).
     """
     ids = count()
+    node_ids: dict[TSNodeKey, NodeId] = {}
 
     def _walk(ts_node: TSNode, *, parent_id: NodeId | None, parent_type: str | None) -> NodeId:
         node_id = f"{file_path}#{next(ids)}:{ts_node.type}"
+        node_ids[ts_node_key(ts_node)] = node_id
         kind = _kind_for(ts_node, parent_type=parent_type)
         properties: dict[str, str] = {"ts_type": ts_node.type}
         name = _node_name(ts_node, source)
@@ -134,4 +171,5 @@ def walk_module(
             _walk(child, parent_id=node_id, parent_type=ts_node.type)
         return node_id
 
-    return _walk(tree_root, parent_id=None, parent_type=None)
+    module_id = _walk(tree_root, parent_id=None, parent_type=None)
+    return WalkResult(module_id=module_id, node_ids=node_ids)

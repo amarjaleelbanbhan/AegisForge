@@ -143,9 +143,11 @@ defines the schema, and `cortexward.cpg.graph` provides `GraphBuilder` plus `InM
 — the reference `CodeGraph` implementation, with cycle-safe reachability/taint/slice queries.
 It also ships the Python reference `LanguageProvider` (`cortexward.languages.python`), which
 walks a tree-sitter parse tree into the schema's AST layer (`AST_CHILD` edges only) and marks
-entry points heuristically. The CFG/DFG/call-graph builders that populate `CFG_NEXT`/
-`DFG_REACHES`/`CALLS` on top of this AST layer, plus the dependency graph, are the remaining
-Phase 2 work.
+entry points heuristically, plus a control-flow builder that populates `CFG_NEXT` over that AST
+layer (sequential flow, branches, loops with `break`/`continue`, `with`, `return`; each function/
+class body is its own scope). `try`/`except`/`finally` is intentionally out of scope for now — a
+dedicated exception-flow builder is future work. The DFG/call-graph builders that populate
+`DFG_REACHES`/`CALLS`, plus the dependency graph, are the remaining Phase 2 work.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 

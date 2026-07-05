@@ -52,7 +52,11 @@ API, and a dependency graph. Python first.
   `cortexward.languages` entry-point group. Entry points are marked heuristically (`main()`
   functions and `if __name__ == "__main__":` guards); framework-specific route/handler detection
   is future work.
-- ⏳ Control-flow graph builder (populates `CFG_NEXT`).
+- ✅ **Control-flow graph builder** (`cortexward.languages.python._cfg_builder`): populates
+  `CFG_NEXT` over the AST layer — sequential flow, `if`/`elif`/`else`, `while`/`for` (incl.
+  `break`/`continue`/loop-`else`), `with`, and `return`, with each function/class body as an
+  independent scope. `try`/`except`/`finally` is explicitly out of scope (a `try_statement` is
+  atomic here); exception control flow is its own future builder.
 - ⏳ Data-flow / def-use graph builder (populates `DFG_REACHES`) — enables real taint analysis.
 - ⏳ Call graph builder (populates `CALLS`) and dependency-manifest parsing.
 

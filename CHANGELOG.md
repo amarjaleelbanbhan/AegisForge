@@ -26,7 +26,15 @@ All notable changes to CortexWard are documented here. The format is based on
     producing the CPG's AST layer, `detect`/`dependency_manifests`/`parse`, registered under the
     `cortexward.languages` entry-point group. Entry points are marked heuristically (`main()`
     functions, `if __name__ == "__main__":` guards).
-  - 100%-covered tests including cycle, diamond-revisit, self-sink, and unreadable-path cases.
+  - **Control-flow builder** (`_cfg_builder.py`): populates `CFG_NEXT` over the AST layer —
+    sequential flow, `if`/`elif`/`else`, `while`/`for` (incl. `break`/`continue`/loop-`else`),
+    `with`, and `return`, with each function/class body as an independent scope.
+    `try`/`except`/`finally` is intentionally out of scope (documented, not silently missing).
+    Required switching the AST↔CFG node-identity key from Python object `id()` to
+    `(start_byte, end_byte, type)` after discovering tree-sitter's `Node` wrapper objects are
+    not stable across separate tree traversals.
+  - 100%-covered tests including cycle, diamond-revisit, self-sink, unreadable-path, and
+    malformed-tree-defense cases.
 - **Test infrastructure fix:** adopted pytest's `--import-mode=importlib` and dropped
   `__init__.py` from every package's `tests/` tree, after adding a second workspace package
   revealed a real collision (`tests` as a shared top-level module name). `mypy` now runs once per
