@@ -57,7 +57,10 @@ API, and a dependency graph. Python first.
   `break`/`continue`/loop-`else`), `with`, and `return`, with each function/class body as an
   independent scope. `try`/`except`/`finally` is explicitly out of scope (a `try_statement` is
   atomic here); exception control flow is its own future builder.
-- ⏳ Data-flow / def-use graph builder (populates `DFG_REACHES`) — enables real taint analysis.
+- ✅ **Data-flow graph builder** (`cortexward.languages.python._dfg_builder`): iterative
+  reaching-definitions dataflow analysis over the CFG, populating `DFG_REACHES` from each
+  definition (plain/augmented assignment, `for`-loop targets, function parameters) to every use
+  it reaches — the foundation for real taint analysis (ladder rung 2).
 - ⏳ Call graph builder (populates `CALLS`) and dependency-manifest parsing.
 
 ## Phase 3 — Scanners ⏳

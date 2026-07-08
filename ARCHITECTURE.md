@@ -146,8 +146,12 @@ walks a tree-sitter parse tree into the schema's AST layer (`AST_CHILD` edges on
 entry points heuristically, plus a control-flow builder that populates `CFG_NEXT` over that AST
 layer (sequential flow, branches, loops with `break`/`continue`, `with`, `return`; each function/
 class body is its own scope). `try`/`except`/`finally` is intentionally out of scope for now — a
-dedicated exception-flow builder is future work. The DFG/call-graph builders that populate
-`DFG_REACHES`/`CALLS`, plus the dependency graph, are the remaining Phase 2 work.
+dedicated exception-flow builder is future work. A data-flow builder then runs an iterative
+reaching-definitions analysis over `CFG_NEXT` to populate `DFG_REACHES` (plain/augmented
+assignment, `for`-loop targets, and function parameters as definitions; variable references,
+excluding attribute/keyword-argument names, as uses) — the def-use graph that grounds taint
+analysis (ladder rung 2). The call-graph builder that populates `CALLS`, plus the dependency
+graph, are the remaining Phase 2 work.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 

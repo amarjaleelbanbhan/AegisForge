@@ -64,6 +64,7 @@ class _ControlFlowBuilder:
     def __init__(self, *, node_ids: dict[TSNodeKey, NodeId], builder: GraphBuilder) -> None:
         self._node_ids = node_ids
         self._builder = builder
+        self._cfg_edges: list[tuple[NodeId, NodeId]] = []
         # Statement types with dedicated control-flow shapes. Anything absent
         # here (including try_statement — see module docstring) falls back
         # to `_flow_for_atomic`.
@@ -79,8 +80,9 @@ class _ControlFlowBuilder:
             "class_definition": self._flow_for_nested_scope,
         }
 
-    def run(self, tree_root: TSNode) -> None:
+    def run(self, tree_root: TSNode) -> list[tuple[NodeId, NodeId]]:
         self._build_scope(list(tree_root.named_children))
+        return self._cfg_edges
 
     def _id_of(self, ts_node: TSNode) -> NodeId:
         return self._node_ids[ts_node_key(ts_node)]
@@ -104,6 +106,7 @@ class _ControlFlowBuilder:
             return
         for source in sources:
             self._builder.add_edge(EdgeKind.CFG_NEXT, source, target_entry)
+            self._cfg_edges.append((source, target_entry))
 
     def _build_scope(self, statements: list[TSNode]) -> None:
         """Build the CFG for one independent scope (module/function/class body).
@@ -263,11 +266,13 @@ class _ControlFlowBuilder:
 
 def build_control_flow(
     tree_root: TSNode, *, node_ids: dict[TSNodeKey, NodeId], builder: GraphBuilder
-) -> None:
+) -> list[tuple[NodeId, NodeId]]:
     """Populate CFG_NEXT edges for every scope in `tree_root`.
 
     Covers the module's top level and every nested function/class body,
     using `node_ids` (from `walk_module`) to attach edges to the graph nodes
-    the AST layer already created.
+    the AST layer already created. Returns every (source, target) CFG_NEXT
+    edge added, so a later pass (the data-flow builder) can run a
+    reaching-definitions analysis over the same graph without re-deriving it.
     """
-    _ControlFlowBuilder(node_ids=node_ids, builder=builder).run(tree_root)
+    return _ControlFlowBuilder(node_ids=node_ids, builder=builder).run(tree_root)

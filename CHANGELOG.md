@@ -33,6 +33,14 @@ All notable changes to CortexWard are documented here. The format is based on
     Required switching the AST↔CFG node-identity key from Python object `id()` to
     `(start_byte, end_byte, type)` after discovering tree-sitter's `Node` wrapper objects are
     not stable across separate tree traversals.
+  - **Data-flow builder** (`_dfg_builder.py`): a classic iterative reaching-definitions analysis
+    (`IN[n] = ∪ OUT[pred]`, `OUT[n] = GEN[n] | (IN[n] - KILL[n])`) over the CFG_NEXT edges above,
+    populating `DFG_REACHES` for plain/augmented assignment, `for`-loop targets, and function
+    parameters as definitions, and any variable reference (excluding attribute/keyword-argument
+    names) as a use — the def-use foundation real taint analysis (ladder rung 2) needs. Function
+    parameters seed a body's entry set directly (`entry_seeds`), since a function's own `def`
+    statement has no `CFG_NEXT` edge into its body (a function is entered by a call, not by
+    falling through).
   - 100%-covered tests including cycle, diamond-revisit, self-sink, unreadable-path, and
     malformed-tree-defense cases.
 - **Test infrastructure fix:** adopted pytest's `--import-mode=importlib` and dropped

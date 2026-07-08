@@ -17,6 +17,7 @@ from tree_sitter import Language, Parser
 from cortexward.cpg import GraphBuilder
 from cortexward.languages.python._ast_walker import walk_module
 from cortexward.languages.python._cfg_builder import build_control_flow
+from cortexward.languages.python._dfg_builder import build_data_flow
 from cortexward.ports import CodeGraph
 
 _DEPENDENCY_MANIFEST_NAMES = (
@@ -77,7 +78,16 @@ class PythonLanguageProvider:
             tree = self._parser.parse(source)
             relative = str(file_path.relative_to(root))
             result = walk_module(tree.root_node, source=source, file_path=relative, builder=builder)
-            build_control_flow(tree.root_node, node_ids=result.node_ids, builder=builder)
+            cfg_edges = build_control_flow(
+                tree.root_node, node_ids=result.node_ids, builder=builder
+            )
+            build_data_flow(
+                tree.root_node,
+                node_ids=result.node_ids,
+                cfg_edges=cfg_edges,
+                source=source,
+                builder=builder,
+            )
         return builder.build()
 
     def dependency_manifests(self, root: Path) -> Sequence[Path]:
