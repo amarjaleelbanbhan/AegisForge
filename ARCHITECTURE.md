@@ -167,17 +167,24 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, each nor
 the internal `Finding` schema. Cross-tool **deduplication and correlation** prevents the same
 bug being reported three times. SARIF is an export format, not the internal model.
 
-`cortexward-scanners` (depends on `cortexward-core`) ships two adapters so far. `BanditScanner`
+`cortexward-scanners` (depends on `cortexward-core`) ships three adapters so far. `BanditScanner`
 invokes `python -m bandit -f json` as a subprocess — a static analyzer that only parses Python's
 AST, so this doesn't touch the non-execution guarantee (ADR-0004), which is about *analyzed
 project* code, not trusted third-party analysis tools — and maps its JSON results to
 `RawFinding`. `SecretsScanner` wraps detect-secrets' native Python API instead (no subprocess,
 no binary needed) and is language-agnostic by design; it preserves detect-secrets' one-way hash
-of each match, never the plaintext secret, in `RawFinding.raw`. A Semgrep adapter is deferred
-until an offline, non-registry rule pack is decided — `--config=auto` needs network access to
-semgrep.dev, which conflicts with this project's offline-determinism bar. Dependency-vulnerability
-scanning (building on Phase 2's `parse_dependencies`) is blocked on deciding how to resolve exact
-installed/locked versions from a manifest constraint.
+of each match, never the plaintext secret, in `RawFinding.raw`. `OsvScanner` queries the public
+OSV.dev API for known vulnerabilities in *exactly-pinned* dependencies only (`==X.Y.Z`) — a range
+constraint (`>=2.0`) can't be resolved to "the version actually in use" without a lockfile this
+scanner doesn't have, and querying OSV without an exact version returns every vulnerability ever
+recorded for a package, a poor-quality signal it deliberately avoids; it does its own minimal pin
+extraction over stdlib `urllib` rather than depending on Phase 2's `parse_dependencies` (scanner
+adapters don't depend on other adapters), and is deliberately network-dependent — unlike the other
+two, freshness against the current vulnerability landscape is the point here, not a compromise. A
+Semgrep adapter is deferred until an offline, non-registry rule pack is decided — `--config=auto`
+needs network access to semgrep.dev, which *does* conflict with this project's offline-determinism
+bar (rules changing over time hurts reproducible benchmarking, unlike a vulnerability database's
+freshness, which is a feature).
 
 Normalization and correlation are already in place: `cortexward.scanners.normalize` turns one
 `RawFinding` into a `Finding` with a single supporting `STATIC_MATCH` `Evidence` at
@@ -191,7 +198,7 @@ cross-tool identity signal used; a finding with no CWE never merges with anythin
 (CortexWard itself, not the individual scanners that fed the findings — those show up per-result
 in `properties.producers`), one deduplicated rule per distinct `rule_id`, `Severity` mapped to
 SARIF's `error`/`warning`/`note` levels. Still export-only, per ADR-0003: `Finding` stays the
-richer internal model. Semgrep and dependency-vulnerability scanning are what's left of Phase 3.
+richer internal model. A Semgrep adapter is what's left of Phase 3.
 
 ### 4.4 Agent framework (Phase 4) — *planned*
 

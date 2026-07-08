@@ -104,10 +104,21 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
   `properties`. An export format only (ADR-0003) — `Finding` stays the richer internal model
   (evidence, verification rung, VEX status) that SARIF's single-message `result` shape can't
   express.
+- ✅ **Dependency-vulnerability adapter**: `OsvScanner` queries the public OSV.dev API for known
+  vulnerabilities in *exactly-pinned* dependencies (`==X.Y.Z` in `requirements*.txt` or a PEP 621
+  `dependencies` entry). Range constraints (`>=2.0`) are skipped, not guessed at — resolving a
+  range to "the version actually in use" needs a lockfile or an installed environment, which a
+  bare `root: Path` doesn't give us; querying OSV without an exact version returns every
+  vulnerability ever recorded for that package, a poor-quality signal this scanner deliberately
+  avoids producing. Does its own minimal pin-extraction (not `cortexward-cpg`'s
+  `parse_dependencies`) to respect the "scanners don't depend on other adapters" boundary — only
+  name+exact-version is needed, not the full `Dependency` record. Unlike the other adapters, this
+  one is deliberately network-dependent: a vulnerability database is supposed to reflect the
+  current threat landscape, so freshness is the point here, not a compromise (contrast the
+  Semgrep deferral below, where changing rules over time would hurt reproducible benchmarking).
+  Network failure degrades to no findings, never a crash.
 - ⏳ Semgrep adapter (needs an offline, non-registry rule pack — `--config=auto` requires
-  network access to semgrep.dev, which conflicts with this project's offline-determinism bar),
-  dependency-vulnerability scanning (building on `parse_dependencies` from Phase 2 — blocked on
-  deciding how to resolve exact installed/locked versions from a manifest constraint).
+  network access to semgrep.dev, which conflicts with this project's offline-determinism bar).
 
 ## Phase 3.5 — Evaluation harness ⏳ *(new; benchmark-first)*
 Built before advanced agents so every later feature is measured

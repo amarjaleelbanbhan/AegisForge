@@ -54,6 +54,20 @@ All notable changes to CortexWard are documented here. The format is based on
     richer internal model SARIF's single-message `result` shape can't fully express. Registered
     under the `cortexward.reporters` entry-point group; a new "Reporters do not depend on other
     adapters or interfaces" import-linter contract mirrors the CPG/scanners ones.
+  - **Dependency-vulnerability adapter** (`cortexward.scanners.osv_scanner.OsvScanner`): queries
+    the public OSV.dev API for known vulnerabilities in *exactly-pinned* dependencies (`==X.Y.Z`
+    in `requirements*.txt` or a PEP 621 `dependencies` entry). Range constraints are skipped, not
+    guessed at, since resolving one to an actual installed version needs a lockfile this scanner
+    doesn't have; querying OSV without an exact version would return every vulnerability ever
+    recorded for a package, a poor-quality signal deliberately avoided. Does its own minimal pin
+    extraction over `urllib` (stdlib, no new HTTP dependency) rather than depending on
+    `cortexward-cpg`'s `parse_dependencies` — only name+exact-version is needed, and scanner
+    adapters don't depend on other adapters. Unlike the other adapters, this one is deliberately
+    network-dependent: a vulnerability database is supposed to reflect the current threat
+    landscape, so freshness is the point, not a compromise on this project's offline-determinism
+    bar (contrast the still-deferred Semgrep adapter, where changing *rules* over time would hurt
+    reproducible benchmarking). Network failure degrades to no findings, never a crash. Tests run
+    real queries against OSV.dev's stable public API.
 - **Phase 2 — Code Property Graph engine.**
   - New workspace package `cortexward-cpg`, depending on `cortexward-core`.
   - `cortexward.cpg.model`: the language-agnostic node/edge schema (`NodeKind`, `EdgeKind`,

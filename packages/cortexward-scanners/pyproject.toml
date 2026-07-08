@@ -39,6 +39,7 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 [project.entry-points."cortexward.scanners"]
 bandit = "cortexward.scanners.bandit_scanner:BanditScanner"
 detect-secrets = "cortexward.scanners.secrets_scanner:SecretsScanner"
+osv = "cortexward.scanners.osv_scanner:OsvScanner"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }
