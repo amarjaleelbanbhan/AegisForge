@@ -32,6 +32,13 @@ All notable changes to CortexWard are documented here. The format is based on
   - A new "Evaluation harness does not depend on other adapters or interfaces" import-linter
     contract, expected to loosen once the harness's `ward bench run` invokes scanners/reporters
     directly.
+  - **Statistical protocol** (`cortexward.eval.statistics`): `bootstrap_ci` — a general
+    percentile-bootstrap confidence interval over any statistic of per-example values (seedable
+    for reproducibility), the primitive "paired bootstrap CIs over per-example results" (§6)
+    reduces to. `mcnemar_test` — the continuity-corrected chi-square test for matched binary
+    "detected / not" outcomes, with an exact closed-form chi-square(1) CDF via `math.erf` rather
+    than adding a `scipy` dependency for one special case (a chi-square(1) variable is the square
+    of a standard normal).
   - 100%-covered.
 - **Phase 3 (in progress) — Scanner adapters.**
   - New workspace package `cortexward-scanners`, depending on `cortexward-core`.

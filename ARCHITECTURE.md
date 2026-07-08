@@ -211,8 +211,16 @@ deterministic finding-matcher: `match_findings()` pairs predicted `Finding`s aga
 input order, so TP/FP/FN counts (and everything derived from them — precision, recall, F1) are
 reproducible across repeated runs rather than merely plausible. FPR/FNR are redefined as
 `1 - precision`/`1 - recall`, since open-ended vulnerability detection has no fixed "negative"
-universe the classic `FP / (FP + TN)` formula assumes. Still missing: the versioned golden dataset
-with contamination controls, the statistical protocol (bootstrap CIs, McNemar's test), and the
+universe the classic `FP / (FP + TN)` formula assumes.
+
+The statistical protocol (§6) is also in place: `bootstrap_ci` is a general, seedable percentile-
+bootstrap confidence interval over any statistic of per-example values — "paired bootstrap CIs
+over per-example results" is the `statistic=mean` case over per-example deltas, but the function
+itself doesn't assume how those per-example values were derived, since the dataset's negative-
+example shape isn't decided yet. `mcnemar_test` is the continuity-corrected chi-square test for
+matched binary "detected / not" outcomes, using an exact closed-form chi-square(1) CDF (`math.erf`
+— a chi-square(1) variable is the square of a standard normal) instead of a `scipy` dependency.
+Still missing: the versioned golden dataset with contamination controls, and the
 `ward bench run/compare/report` harness contract itself.
 
 ### 4.4 Agent framework (Phase 4) — *planned*

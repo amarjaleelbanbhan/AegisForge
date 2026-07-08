@@ -137,10 +137,16 @@ Built before advanced agents so every later feature is measured
   "negative" universe in open-ended vulnerability detection, unlike classifying a fixed labeled
   set — documented explicitly rather than silently reusing the classic binary-classification
   formula where it wouldn't apply).
+- ✅ **Statistical protocol** (`cortexward.eval.statistics`): `bootstrap_ci` — a general
+  percentile-bootstrap confidence interval for any statistic over per-example values (paired
+  detection-delta CIs are the `statistic=mean` case over per-example differences, per §6, but the
+  function itself is metric-agnostic since the dataset's negative-example shape isn't decided
+  yet). `mcnemar_test` — the continuity-corrected chi-square test for matched binary "detected /
+  not" outcomes between two configurations, using an exact closed-form chi-square(1) CDF
+  (`math.erf`) rather than adding a `scipy` dependency for one special case.
 - ⏳ A versioned **golden dataset** with contamination controls (memorized/post-cutoff/mutated/
-  novel splits), the statistical protocol (bootstrap CIs, McNemar's test), and the `ward bench
-  run/compare/report` harness contract itself — these need the dataset-sourcing and CLI-surface
-  decisions the MPS defers to this phase, not yet made.
+  novel splits) and the `ward bench run/compare/report` harness contract itself — these need the
+  dataset-sourcing and CLI-surface decisions the MPS defers to this phase, not yet made.
 
 ## Phase 4 — Agent framework ⏳
 Orchestrator (behind `OrchestratorPort`; LangGraph adapter) and agents (Planner, Scanner,
