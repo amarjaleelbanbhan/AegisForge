@@ -177,8 +177,15 @@ of each match, never the plaintext secret, in `RawFinding.raw`. A Semgrep adapte
 until an offline, non-registry rule pack is decided — `--config=auto` needs network access to
 semgrep.dev, which conflicts with this project's offline-determinism bar. Dependency-vulnerability
 scanning (building on Phase 2's `parse_dependencies`) is blocked on deciding how to resolve exact
-installed/locked versions from a manifest constraint. Cross-tool dedup/correlation into `Finding`
-and SARIF export are the rest of Phase 3.
+installed/locked versions from a manifest constraint.
+
+Normalization and correlation are already in place: `cortexward.scanners.normalize` turns one
+`RawFinding` into a `Finding` with a single supporting `STATIC_MATCH` `Evidence` at
+`VerificationRung.NONE`; `correlate()` runs every scanner's results through it and merges findings
+that share a CWE at the same file+line into one `Finding` with multiple `Evidence` entries — the
+same real bug reported by several tools becomes one finding, not several. CWE is the only
+cross-tool identity signal used; a finding with no CWE never merges with anything. SARIF export
+is the rest of Phase 3.
 
 ### 4.4 Agent framework (Phase 4) — *planned*
 

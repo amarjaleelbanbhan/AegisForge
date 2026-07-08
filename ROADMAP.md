@@ -89,11 +89,19 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
   agnostic by design (ignores the `languages` filter — a leaked credential in a `.env` file is as
   real as one in a `.py` file); preserves detect-secrets' one-way `hashed_secret`, never the
   plaintext, so a scan result can never itself become a new leak.
+- ✅ **Cross-tool normalization & correlation** (`cortexward.scanners.normalize`/`correlate`):
+  turns any scanner's `RawFinding`s into the domain `Finding` aggregate — one supporting
+  `STATIC_MATCH` `Evidence` at `VerificationRung.NONE`, exactly what "only a raw detection signal
+  exists" means on the ladder. `correlate()` merges findings from *different* scanners that share
+  a CWE at the same file+line into a single `Finding` with multiple `Evidence` entries (worst-case
+  severity, every contributing producer tagged) — one real bug reported by several tools becomes
+  one finding, not several duplicates. A finding with no CWE never merges with anything; CWE is
+  the only tool-agnostic identity signal used, deliberately not rule-name or message similarity.
 - ⏳ Semgrep adapter (needs an offline, non-registry rule pack — `--config=auto` requires
   network access to semgrep.dev, which conflicts with this project's offline-determinism bar),
   dependency-vulnerability scanning (building on `parse_dependencies` from Phase 2 — blocked on
-  deciding how to resolve exact installed/locked versions from a manifest constraint), cross-tool
-  dedup/correlation into `Finding`, SARIF export.
+  deciding how to resolve exact installed/locked versions from a manifest constraint), SARIF
+  export.
 
 ## Phase 3.5 — Evaluation harness ⏳ *(new; benchmark-first)*
 Built before advanced agents so every later feature is measured

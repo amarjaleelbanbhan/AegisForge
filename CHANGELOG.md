@@ -36,6 +36,15 @@ All notable changes to CortexWard are documented here. The format is based on
     that this repo's own gitleaks self-audit (CI) would flag.
   - A new import-linter contract ("Scanner adapters do not depend on other adapters or
     interfaces") mirrors the existing CPG-engine contract for symmetry.
+  - **Cross-tool normalization & correlation** (`cortexward.scanners.normalize`/`correlate`):
+    `normalize()` turns one `RawFinding` into a `Finding` with one supporting `STATIC_MATCH`
+    `Evidence` at `VerificationRung.NONE` ("only a raw detection signal exists," per the ladder's
+    own definition of that rung). `correlate()` runs multiple scanners' results through
+    `normalize()` and merges findings sharing a CWE at the same file+line into a single `Finding`
+    with multiple `Evidence` entries (worst-case severity, every contributing producer tagged) —
+    the same real bug reported by several tools becomes one finding, not several duplicates. CWE
+    is the only cross-tool identity signal used (rule ids and messages differ per tool for the
+    same bug class); a finding with no CWE never merges with anything.
 - **Phase 2 — Code Property Graph engine.**
   - New workspace package `cortexward-cpg`, depending on `cortexward-core`.
   - `cortexward.cpg.model`: the language-agnostic node/edge schema (`NodeKind`, `EdgeKind`,
