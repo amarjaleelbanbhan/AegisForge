@@ -16,7 +16,7 @@ policy — the JSON payload, not the exit code, is what's authoritative here.
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec B404
 import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -114,7 +114,8 @@ class BanditScanner:
             return
         resolved_root = root.resolve()
         excludes = ",".join(f"*/{name}/*" for name in _EXCLUDED_DIR_NAMES)
-        process = subprocess.run(  # noqa: S603 — fixed argv, no shell, trusted tool
+        # Fixed argv, no shell, trusted tool (see module docstring).
+        process = subprocess.run(  # noqa: S603 # nosec B603
             [
                 sys.executable,
                 "-m",
