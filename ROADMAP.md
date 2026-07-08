@@ -38,9 +38,9 @@ Restructured before the codebase ossified.
   scan, and a CycloneDX SBOM artifact. *(Signed release provenance is deferred to Phase 10,
   where release automation is specified — MPS §27.)*
 
-## Phase 2 — Code intelligence 🚧
+## Phase 2 — Code intelligence ✅
 Language-agnostic Code Property Graph on tree-sitter (AST → CFG → DFG → call graph), a query
-API, and a dependency graph. Python first.
+API, and dependency-manifest parsing. Python first.
 - Enables reachability + taint (ladder rungs 1–2) and grounded LLM retrieval.
 - ✅ **Graph engine** (`cortexward-cpg`): the node/edge schema (`cortexward.cpg.model`) and the
   reference in-memory `CodeGraph` implementation (`cortexward.cpg.graph`) — `GraphBuilder` plus
@@ -66,8 +66,15 @@ API, and a dependency graph. Python first.
   definition(s) it matches (bare-identifier calls against plain functions, attribute calls
   against methods), enabling `CodeGraph.callers()` and multi-function reachability. Deliberately
   over-approximates on ambiguous names rather than risk missing a real edge; cross-file and
-  type-aware resolution are future work (the dependency-graph builder's job).
-- ⏳ Dependency-manifest parsing.
+  type-aware resolution are future work.
+- ✅ **Dependency-manifest parsing** (`cortexward.languages.python.parse_dependencies`): reads
+  (never executes) `pyproject.toml` (PEP 621), `requirements*.txt`, `setup.cfg`, and `Pipfile`
+  into structured `Dependency` records (name, version constraint, manifest, runtime/dev/optional).
+  `setup.py` is explicitly out of scope — extracting its dependencies reliably requires executing
+  it, which the non-execution guarantee (ADR-0004) forbids. Returns plain data rather than
+  `CodeGraph` nodes/edges for now — the MPS's "dependency graph" layer's exact shape (one node
+  per package? per manifest?) isn't pinned down yet, and this is exactly what a future
+  dependency-scanning adapter (Phase 3) needs without forcing that decision early.
 
 ## Phase 3 — Scanners ⏳
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normalized to the

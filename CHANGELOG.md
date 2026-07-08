@@ -14,7 +14,7 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
-- **Phase 2 (in progress) — Code Property Graph engine.**
+- **Phase 2 — Code Property Graph engine.**
   - New workspace package `cortexward-cpg`, depending on `cortexward-core`.
   - `cortexward.cpg.model`: the language-agnostic node/edge schema (`NodeKind`, `EdgeKind`,
     `Node`, `Edge`) unifying AST, control-flow, data-flow, and call edges.
@@ -50,6 +50,14 @@ All notable changes to CortexWard are documented here. The format is based on
     risk missing a real one; this enables `CodeGraph.callers()` and multi-function reachability
     through `CALLS`. Cross-file and type-aware resolution are explicitly out of scope (future
     dependency-graph work).
+  - **Dependency-manifest parsing** (`_manifest_parser.py`, exported as `cortexward.languages.
+    python.parse_dependencies`): reads (never executes) `pyproject.toml` (PEP 621),
+    `requirements*.txt`, `setup.cfg`, and `Pipfile` into structured `Dependency` records (name,
+    version constraint, source manifest, runtime/dev/optional kind). `setup.py` is explicitly out
+    of scope (extracting `install_requires` reliably needs execution, forbidden by ADR-0004).
+    Returns plain data rather than `CodeGraph` nodes — the MPS's "dependency graph" layer's exact
+    shape isn't pinned down yet, and this is exactly what a future dependency-scanning adapter
+    needs without forcing that decision early. **Phase 2 is now complete.**
   - 100%-covered tests including cycle, diamond-revisit, self-sink, unreadable-path, and
     malformed-tree-defense cases.
 - **Test infrastructure fix:** adopted pytest's `--import-mode=importlib` and dropped

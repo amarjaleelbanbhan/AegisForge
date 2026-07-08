@@ -131,7 +131,7 @@ exist yet — these are the contracts future scanner/LLM/sandbox/VCS packages im
 `PluginRegistry`, which discovers and lazily loads adapters via `importlib.metadata` entry
 points. The registry never imports a concrete adapter package.
 
-### 4.2 Code intelligence (Phase 2) — *in progress*
+### 4.2 Code intelligence (Phase 2) — *complete*
 
 A language-agnostic **Code Property Graph** (AST + control-flow + data-flow + call graph), with
 a query API. This is the technical moat: it powers reachability and taint analysis *and* grounds
@@ -153,8 +153,13 @@ excluding attribute/keyword-argument names, as uses) — the def-use graph that 
 analysis (ladder rung 2). A call-graph builder then populates `CALLS` via best-effort, same-file,
 name-based resolution (bare-identifier calls against plain functions, attribute calls against
 methods), deliberately over-approximating ambiguous same-named matches rather than risking a
-missed edge; cross-file and type-aware resolution are future dependency-graph work, which — along
-with dependency-manifest parsing — is the remaining Phase 2 work.
+missed edge; cross-file and type-aware resolution are future work. Finally,
+`cortexward.languages.python.parse_dependencies` reads (never executes) `pyproject.toml`,
+`requirements*.txt`, `setup.cfg`, and `Pipfile` into structured `Dependency` records —
+`setup.py` is out of scope, since extracting its dependencies reliably needs execution. This
+returns plain data rather than `CodeGraph` nodes: the MPS's "dependency graph" layer's exact
+node/edge shape isn't pinned down yet, and plain records are exactly what a future
+dependency-scanning adapter (Phase 3) needs without forcing that decision early.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 
