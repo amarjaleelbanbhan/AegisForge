@@ -37,6 +37,7 @@ target-version = "py311"
 src = [
   "packages/cortexward-core/src", "packages/cortexward-core/tests",
   "packages/cortexward-cpg/src", "packages/cortexward-cpg/tests",
+  "packages/cortexward-scanners/src", "packages/cortexward-scanners/tests",
 ]
 
 [tool.ruff.lint]
@@ -84,7 +85,11 @@ warn_redundant_casts = true
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
-mypy_path = ["packages/cortexward-core/src", "packages/cortexward-cpg/src"]
+mypy_path = [
+  "packages/cortexward-core/src",
+  "packages/cortexward-cpg/src",
+  "packages/cortexward-scanners/src",
+]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -105,7 +110,11 @@ minversion = "8.0"
 # own tests/ directory; without this, two packages' tests/ trees would both
 # claim the top-level module name "tests" and collide in sys.modules.
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
-testpaths = ["packages/cortexward-core/tests", "packages/cortexward-cpg/tests"]
+testpaths = [
+  "packages/cortexward-core/tests",
+  "packages/cortexward-cpg/tests",
+  "packages/cortexward-scanners/tests",
+]
 markers = [
   "unit: fast, isolated unit tests",
   "integration: cross-component integration tests",
@@ -192,6 +201,21 @@ type = "forbidden"
 source_modules = ["cortexward.cpg"]
 forbidden_modules = [
   "cortexward.scanners",
+  "cortexward.llm",
+  "cortexward.orchestrator",
+  "cortexward.sandbox",
+  "cortexward.storage",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+[[tool.importlinter.contracts]]
+name = "Scanner adapters do not depend on other adapters or interfaces"
+type = "forbidden"
+source_modules = ["cortexward.scanners"]
+forbidden_modules = [
+  "cortexward.cpg",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",

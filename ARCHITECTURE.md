@@ -161,11 +161,18 @@ returns plain data rather than `CodeGraph` nodes: the MPS's "dependency graph" l
 node/edge shape isn't pinned down yet, and plain records are exactly what a future
 dependency-scanning adapter (Phase 3) needs without forcing that decision early.
 
-### 4.3 Scanners (Phase 3) — *planned*
+### 4.3 Scanners (Phase 3) — *in progress*
 
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, each normalizing to
 the internal `Finding` schema. Cross-tool **deduplication and correlation** prevents the same
 bug being reported three times. SARIF is an export format, not the internal model.
+
+`cortexward-scanners` (depends on `cortexward-core`) ships the first adapter: `BanditScanner`
+invokes `python -m bandit -f json` as a subprocess — a static analyzer that only parses Python's
+AST, so this doesn't touch the non-execution guarantee (ADR-0004), which is about *analyzed
+project* code, not trusted third-party analysis tools — and maps its JSON results to
+`RawFinding`. Remaining adapters (Semgrep, secrets, dependency-vulnerability scanning), cross-tool
+dedup/correlation into `Finding`, and SARIF export are the rest of Phase 3.
 
 ### 4.4 Agent framework (Phase 4) — *planned*
 

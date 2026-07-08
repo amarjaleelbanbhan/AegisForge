@@ -14,6 +14,20 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 3 (in progress) — Scanner adapters.**
+  - New workspace package `cortexward-scanners`, depending on `cortexward-core`.
+  - **Bandit adapter** (`cortexward.scanners.bandit_scanner.BanditScanner`): invokes
+    `python -m bandit -f json` as a subprocess and maps its JSON results to `RawFinding` (rule id,
+    message, `SourceLocation`, severity hint, CWE, and Bandit's native fields preserved in `raw`
+    for audit). Bandit only parses Python's AST — it never executes analyzed code, so this doesn't
+    touch the non-execution guarantee (ADR-0004), which is about the *analyzed project's* code.
+    Registered under the `cortexward.scanners` entry-point group; excludes common non-source
+    directories (`.venv`, `node_modules`, ...) and respects the `languages` filter.
+  - 100%-covered tests running the real `bandit` package against fixture files (no subprocess
+    mocking), plus direct tests of internal parsing helpers for JSON shapes Bandit's schema
+    doesn't rule out but its current behavior doesn't produce.
+  - A new import-linter contract ("Scanner adapters do not depend on other adapters or
+    interfaces") mirrors the existing CPG-engine contract for symmetry.
 - **Phase 2 — Code Property Graph engine.**
   - New workspace package `cortexward-cpg`, depending on `cortexward-core`.
   - `cortexward.cpg.model`: the language-agnostic node/edge schema (`NodeKind`, `EdgeKind`,

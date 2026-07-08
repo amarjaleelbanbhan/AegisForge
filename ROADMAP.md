@@ -76,9 +76,16 @@ API, and dependency-manifest parsing. Python first.
   per package? per manifest?) isn't pinned down yet, and this is exactly what a future
   dependency-scanning adapter (Phase 3) needs without forcing that decision early.
 
-## Phase 3 — Scanners ⏳
+## Phase 3 — Scanners 🚧
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normalized to the
 `Finding` schema, with cross-tool dedup/correlation and SARIF export.
+- ✅ **Bandit adapter** (`cortexward-scanners`, new workspace package): `BanditScanner`
+  implements `ScannerPort` by invoking `python -m bandit -f json` as a subprocess (never executes
+  analyzed code — Bandit itself only parses Python's AST) and mapping its JSON results to
+  `RawFinding` (rule id, message, location, severity hint, CWE, native fields preserved in `raw`).
+  Registered under the `cortexward.scanners` entry-point group.
+- ⏳ Semgrep adapter, secret scanning, dependency-vulnerability scanning (building on
+  `parse_dependencies` from Phase 2), cross-tool dedup/correlation into `Finding`, SARIF export.
 
 ## Phase 3.5 — Evaluation harness ⏳ *(new; benchmark-first)*
 Built before advanced agents so every later feature is measured

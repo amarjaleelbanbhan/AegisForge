@@ -1,0 +1,44 @@
+# cortexward-scanners — SAST/secret/dependency scanner adapters implementing
+# ScannerPort (MPS §17.1). Depends on cortexward-core for the port contract
+# and RawFinding/SourceLocation; adapters wrap external tools via subprocess
+# and never execute analyzed project code themselves (ADR-0004).
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortexward-scanners"
+version = "0.1.0.dev0"
+description = "CortexWard scanner adapters (Semgrep, Bandit, secrets, dependencies)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CortexWard Contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  "cortexward-core",
+  "bandit>=1.7,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
+Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[project.entry-points."cortexward.scanners"]
+bandit = "cortexward.scanners.bandit_scanner:BanditScanner"
+
+[tool.uv.sources]
+cortexward-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortexward"]
