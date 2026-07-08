@@ -184,8 +184,14 @@ Normalization and correlation are already in place: `cortexward.scanners.normali
 `VerificationRung.NONE`; `correlate()` runs every scanner's results through it and merges findings
 that share a CWE at the same file+line into one `Finding` with multiple `Evidence` entries — the
 same real bug reported by several tools becomes one finding, not several. CWE is the only
-cross-tool identity signal used; a finding with no CWE never merges with anything. SARIF export
-is the rest of Phase 3.
+cross-tool identity signal used; a finding with no CWE never merges with anything.
+
+`cortexward-reporters` (depends on `cortexward-core`) ships the first `ReporterPort` adapter:
+`SarifReporter` renders `Finding`s into a SARIF 2.1.0 document — one `run`, one `tool.driver`
+(CortexWard itself, not the individual scanners that fed the findings — those show up per-result
+in `properties.producers`), one deduplicated rule per distinct `rule_id`, `Severity` mapped to
+SARIF's `error`/`warning`/`note` levels. Still export-only, per ADR-0003: `Finding` stays the
+richer internal model. Semgrep and dependency-vulnerability scanning are what's left of Phase 3.
 
 ### 4.4 Agent framework (Phase 4) — *planned*
 

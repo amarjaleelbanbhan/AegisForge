@@ -38,6 +38,7 @@ src = [
   "packages/cortexward-core/src", "packages/cortexward-core/tests",
   "packages/cortexward-cpg/src", "packages/cortexward-cpg/tests",
   "packages/cortexward-scanners/src", "packages/cortexward-scanners/tests",
+  "packages/cortexward-reporters/src", "packages/cortexward-reporters/tests",
 ]
 
 [tool.ruff.lint]
@@ -89,6 +90,7 @@ mypy_path = [
   "packages/cortexward-core/src",
   "packages/cortexward-cpg/src",
   "packages/cortexward-scanners/src",
+  "packages/cortexward-reporters/src",
 ]
 
 [[tool.mypy.overrides]]
@@ -114,6 +116,7 @@ testpaths = [
   "packages/cortexward-core/tests",
   "packages/cortexward-cpg/tests",
   "packages/cortexward-scanners/tests",
+  "packages/cortexward-reporters/tests",
 ]
 markers = [
   "unit: fast, isolated unit tests",
@@ -157,6 +160,7 @@ forbidden_modules = [
   "cortexward.plugins",
   "cortexward.cpg",
   "cortexward.scanners",
+  "cortexward.reporters",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -173,6 +177,7 @@ source_modules = ["cortexward.ports"]
 forbidden_modules = [
   "cortexward.cpg",
   "cortexward.scanners",
+  "cortexward.reporters",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -189,6 +194,7 @@ source_modules = ["cortexward.plugins"]
 forbidden_modules = [
   "cortexward.cpg",
   "cortexward.scanners",
+  "cortexward.reporters",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -201,6 +207,7 @@ type = "forbidden"
 source_modules = ["cortexward.cpg"]
 forbidden_modules = [
   "cortexward.scanners",
+  "cortexward.reporters",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -216,6 +223,23 @@ type = "forbidden"
 source_modules = ["cortexward.scanners"]
 forbidden_modules = [
   "cortexward.cpg",
+  "cortexward.reporters",
+  "cortexward.llm",
+  "cortexward.orchestrator",
+  "cortexward.sandbox",
+  "cortexward.storage",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+[[tool.importlinter.contracts]]
+name = "Reporters do not depend on other adapters or interfaces"
+type = "forbidden"
+source_modules = ["cortexward.reporters"]
+forbidden_modules = [
+  "cortexward.cpg",
+  "cortexward.scanners",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",

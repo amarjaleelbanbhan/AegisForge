@@ -97,11 +97,17 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
   severity, every contributing producer tagged) — one real bug reported by several tools becomes
   one finding, not several duplicates. A finding with no CWE never merges with anything; CWE is
   the only tool-agnostic identity signal used, deliberately not rule-name or message similarity.
+- ✅ **SARIF export** (`cortexward-reporters`, new workspace package): `SarifReporter` implements
+  `ReporterPort`, rendering `Finding`s into a SARIF 2.1.0 document — one `run`, one `tool.driver`
+  (CortexWard itself), one deduplicated `reportingDescriptor` per distinct `rule_id`, severity
+  mapped to SARIF's `error`/`warning`/`note` levels, CWE and contributing-producer tags carried in
+  `properties`. An export format only (ADR-0003) — `Finding` stays the richer internal model
+  (evidence, verification rung, VEX status) that SARIF's single-message `result` shape can't
+  express.
 - ⏳ Semgrep adapter (needs an offline, non-registry rule pack — `--config=auto` requires
   network access to semgrep.dev, which conflicts with this project's offline-determinism bar),
   dependency-vulnerability scanning (building on `parse_dependencies` from Phase 2 — blocked on
-  deciding how to resolve exact installed/locked versions from a manifest constraint), SARIF
-  export.
+  deciding how to resolve exact installed/locked versions from a manifest constraint).
 
 ## Phase 3.5 — Evaluation harness ⏳ *(new; benchmark-first)*
 Built before advanced agents so every later feature is measured

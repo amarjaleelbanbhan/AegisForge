@@ -45,6 +45,15 @@ All notable changes to CortexWard are documented here. The format is based on
     the same real bug reported by several tools becomes one finding, not several duplicates. CWE
     is the only cross-tool identity signal used (rule ids and messages differ per tool for the
     same bug class); a finding with no CWE never merges with anything.
+  - **SARIF export** — new workspace package `cortexward-reporters`, depending on
+    `cortexward-core`. `SarifReporter` (`cortexward.reporters.sarif.SarifReporter`) implements
+    `ReporterPort`, rendering `Finding`s into a SARIF 2.1.0 document: one `run`, one `tool.driver`
+    identifying CortexWard itself, one deduplicated `reportingDescriptor` per distinct `rule_id`,
+    `Severity` mapped to SARIF's `error`/`warning`/`note` levels, and CWE plus contributing-
+    producer tags carried in `properties`. An export format only (ADR-0003) — `Finding` stays the
+    richer internal model SARIF's single-message `result` shape can't fully express. Registered
+    under the `cortexward.reporters` entry-point group; a new "Reporters do not depend on other
+    adapters or interfaces" import-linter contract mirrors the CPG/scanners ones.
 - **Phase 2 — Code Property Graph engine.**
   - New workspace package `cortexward-cpg`, depending on `cortexward-core`.
   - `cortexward.cpg.model`: the language-agnostic node/edge schema (`NodeKind`, `EdgeKind`,
