@@ -1,7 +1,8 @@
 # cortexward-scanners — SAST/secret/dependency scanner adapters implementing
 # ScannerPort (MPS §17.1). Depends on cortexward-core for the port contract
-# and RawFinding/SourceLocation; adapters wrap external tools via subprocess
-# and never execute analyzed project code themselves (ADR-0004).
+# and RawFinding/SourceLocation; adapters wrap external tools (subprocess or
+# a native Python API, whichever the tool offers) and never execute analyzed
+# project code themselves (ADR-0004).
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
@@ -28,6 +29,7 @@ classifiers = [
 dependencies = [
   "cortexward-core",
   "bandit>=1.7,<2",
+  "detect-secrets>=1.5,<2",
 ]
 
 [project.urls]
@@ -36,6 +38,7 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 
 [project.entry-points."cortexward.scanners"]
 bandit = "cortexward.scanners.bandit_scanner:BanditScanner"
+detect-secrets = "cortexward.scanners.secrets_scanner:SecretsScanner"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }

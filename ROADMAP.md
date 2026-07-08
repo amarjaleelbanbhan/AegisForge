@@ -84,8 +84,16 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
   analyzed code — Bandit itself only parses Python's AST) and mapping its JSON results to
   `RawFinding` (rule id, message, location, severity hint, CWE, native fields preserved in `raw`).
   Registered under the `cortexward.scanners` entry-point group.
-- ⏳ Semgrep adapter, secret scanning, dependency-vulnerability scanning (building on
-  `parse_dependencies` from Phase 2), cross-tool dedup/correlation into `Finding`, SARIF export.
+- ✅ **Secrets adapter**: `SecretsScanner` implements `ScannerPort` via detect-secrets' native
+  Python API (`SecretsCollection.scan_files` — no subprocess, no external binary). Language-
+  agnostic by design (ignores the `languages` filter — a leaked credential in a `.env` file is as
+  real as one in a `.py` file); preserves detect-secrets' one-way `hashed_secret`, never the
+  plaintext, so a scan result can never itself become a new leak.
+- ⏳ Semgrep adapter (needs an offline, non-registry rule pack — `--config=auto` requires
+  network access to semgrep.dev, which conflicts with this project's offline-determinism bar),
+  dependency-vulnerability scanning (building on `parse_dependencies` from Phase 2 — blocked on
+  deciding how to resolve exact installed/locked versions from a manifest constraint), cross-tool
+  dedup/correlation into `Finding`, SARIF export.
 
 ## Phase 3.5 — Evaluation harness ⏳ *(new; benchmark-first)*
 Built before advanced agents so every later feature is measured

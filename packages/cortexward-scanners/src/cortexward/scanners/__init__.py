@@ -3,5 +3,6 @@
 from __future__ import annotations
 
 from cortexward.scanners.bandit_scanner import BanditScanner
+from cortexward.scanners.secrets_scanner import SecretsScanner
 
-__all__ = ["BanditScanner"]
+__all__ = ["BanditScanner", "SecretsScanner"]

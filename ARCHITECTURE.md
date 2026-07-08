@@ -167,12 +167,18 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, each nor
 the internal `Finding` schema. Cross-tool **deduplication and correlation** prevents the same
 bug being reported three times. SARIF is an export format, not the internal model.
 
-`cortexward-scanners` (depends on `cortexward-core`) ships the first adapter: `BanditScanner`
+`cortexward-scanners` (depends on `cortexward-core`) ships two adapters so far. `BanditScanner`
 invokes `python -m bandit -f json` as a subprocess — a static analyzer that only parses Python's
 AST, so this doesn't touch the non-execution guarantee (ADR-0004), which is about *analyzed
 project* code, not trusted third-party analysis tools — and maps its JSON results to
-`RawFinding`. Remaining adapters (Semgrep, secrets, dependency-vulnerability scanning), cross-tool
-dedup/correlation into `Finding`, and SARIF export are the rest of Phase 3.
+`RawFinding`. `SecretsScanner` wraps detect-secrets' native Python API instead (no subprocess,
+no binary needed) and is language-agnostic by design; it preserves detect-secrets' one-way hash
+of each match, never the plaintext secret, in `RawFinding.raw`. A Semgrep adapter is deferred
+until an offline, non-registry rule pack is decided — `--config=auto` needs network access to
+semgrep.dev, which conflicts with this project's offline-determinism bar. Dependency-vulnerability
+scanning (building on Phase 2's `parse_dependencies`) is blocked on deciding how to resolve exact
+installed/locked versions from a manifest constraint. Cross-tool dedup/correlation into `Finding`
+and SARIF export are the rest of Phase 3.
 
 ### 4.4 Agent framework (Phase 4) — *planned*
 

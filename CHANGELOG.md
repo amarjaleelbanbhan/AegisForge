@@ -26,6 +26,14 @@ All notable changes to CortexWard are documented here. The format is based on
   - 100%-covered tests running the real `bandit` package against fixture files (no subprocess
     mocking), plus direct tests of internal parsing helpers for JSON shapes Bandit's schema
     doesn't rule out but its current behavior doesn't produce.
+  - **Secrets adapter** (`cortexward.scanners.secrets_scanner.SecretsScanner`): uses
+    detect-secrets' native Python API directly (`SecretsCollection.scan_files`) — a pure-Python
+    library, so no subprocess or external binary needed. Ignores the `languages` filter entirely:
+    secrets aren't scoped to one grammar the way SAST rules are. Preserves detect-secrets' one-way
+    `hashed_secret` in `RawFinding.raw`, never the plaintext, so a scan result can never itself
+    become a new leak. Test fixtures build fake tokens by string concatenation rather than a
+    single literal, so the test source itself never contains a contiguous, real-looking secret
+    that this repo's own gitleaks self-audit (CI) would flag.
   - A new import-linter contract ("Scanner adapters do not depend on other adapters or
     interfaces") mirrors the existing CPG-engine contract for symmetry.
 - **Phase 2 — Code Property Graph engine.**
