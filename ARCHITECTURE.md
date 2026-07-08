@@ -150,8 +150,11 @@ dedicated exception-flow builder is future work. A data-flow builder then runs a
 reaching-definitions analysis over `CFG_NEXT` to populate `DFG_REACHES` (plain/augmented
 assignment, `for`-loop targets, and function parameters as definitions; variable references,
 excluding attribute/keyword-argument names, as uses) — the def-use graph that grounds taint
-analysis (ladder rung 2). The call-graph builder that populates `CALLS`, plus the dependency
-graph, are the remaining Phase 2 work.
+analysis (ladder rung 2). A call-graph builder then populates `CALLS` via best-effort, same-file,
+name-based resolution (bare-identifier calls against plain functions, attribute calls against
+methods), deliberately over-approximating ambiguous same-named matches rather than risking a
+missed edge; cross-file and type-aware resolution are future dependency-graph work, which — along
+with dependency-manifest parsing — is the remaining Phase 2 work.
 
 ### 4.3 Scanners (Phase 3) — *planned*
 

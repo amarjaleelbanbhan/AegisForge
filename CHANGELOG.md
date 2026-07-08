@@ -41,6 +41,15 @@ All notable changes to CortexWard are documented here. The format is based on
     parameters seed a body's entry set directly (`entry_seeds`), since a function's own `def`
     statement has no `CFG_NEXT` edge into its body (a function is entered by a call, not by
     falling through).
+  - **Call-graph builder** (`_call_graph_builder.py`): best-effort, same-file, name-based
+    resolution populating `CALLS` — bare-identifier calls (`foo()`) resolve against plain
+    function definitions, attribute calls (`self.method()`) resolve against method definitions,
+    each collected in one pass over the tree before calls are resolved in a second pass (so
+    forward references to a not-yet-seen definition still resolve). Deliberately
+    over-approximates ambiguous same-named matches — every match gets its own edge — rather than
+    risk missing a real one; this enables `CodeGraph.callers()` and multi-function reachability
+    through `CALLS`. Cross-file and type-aware resolution are explicitly out of scope (future
+    dependency-graph work).
   - 100%-covered tests including cycle, diamond-revisit, self-sink, unreadable-path, and
     malformed-tree-defense cases.
 - **Test infrastructure fix:** adopted pytest's `--import-mode=importlib` and dropped

@@ -16,6 +16,7 @@ from tree_sitter import Language, Parser
 
 from cortexward.cpg import GraphBuilder
 from cortexward.languages.python._ast_walker import walk_module
+from cortexward.languages.python._call_graph_builder import build_call_graph
 from cortexward.languages.python._cfg_builder import build_control_flow
 from cortexward.languages.python._dfg_builder import build_data_flow
 from cortexward.ports import CodeGraph
@@ -87,6 +88,9 @@ class PythonLanguageProvider:
                 cfg_edges=cfg_edges,
                 source=source,
                 builder=builder,
+            )
+            build_call_graph(
+                tree.root_node, node_ids=result.node_ids, source=source, builder=builder
             )
         return builder.build()
 

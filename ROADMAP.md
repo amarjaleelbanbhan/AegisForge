@@ -61,7 +61,13 @@ API, and a dependency graph. Python first.
   reaching-definitions dataflow analysis over the CFG, populating `DFG_REACHES` from each
   definition (plain/augmented assignment, `for`-loop targets, function parameters) to every use
   it reaches — the foundation for real taint analysis (ladder rung 2).
-- ⏳ Call graph builder (populates `CALLS`) and dependency-manifest parsing.
+- ✅ **Call graph builder** (`cortexward.languages.python._call_graph_builder`): best-effort,
+  same-file, name-based resolution populating `CALLS` from each call site to the function/method
+  definition(s) it matches (bare-identifier calls against plain functions, attribute calls
+  against methods), enabling `CodeGraph.callers()` and multi-function reachability. Deliberately
+  over-approximates on ambiguous names rather than risk missing a real edge; cross-file and
+  type-aware resolution are future work (the dependency-graph builder's job).
+- ⏳ Dependency-manifest parsing.
 
 ## Phase 3 — Scanners ⏳
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normalized to the
