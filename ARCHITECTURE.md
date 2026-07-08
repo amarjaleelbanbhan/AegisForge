@@ -200,6 +200,21 @@ in `properties.producers`), one deduplicated rule per distinct `rule_id`, `Sever
 SARIF's `error`/`warning`/`note` levels. Still export-only, per ADR-0003: `Finding` stays the
 richer internal model. A Semgrep adapter is what's left of Phase 3.
 
+### 4.3.5 Evaluation harness (Phase 3.5) — *in progress*
+
+Built before the heavy agent work (ADR-0007) so every subsequent capability is measured from the
+moment it exists. `cortexward-eval` (depends on `cortexward-core`) ships the `RunManifest` — the
+immutable per-run provenance record (evaluation-framework.md §5: git SHA, config hash, dataset,
+models with training cutoffs, prompt versions, runtime/hardware, cost, metrics) — and a
+deterministic finding-matcher: `match_findings()` pairs predicted `Finding`s against labeled
+`GroundTruthFinding`s by CWE compatibility plus location overlap, via greedy bipartite matching in
+input order, so TP/FP/FN counts (and everything derived from them — precision, recall, F1) are
+reproducible across repeated runs rather than merely plausible. FPR/FNR are redefined as
+`1 - precision`/`1 - recall`, since open-ended vulnerability detection has no fixed "negative"
+universe the classic `FP / (FP + TN)` formula assumes. Still missing: the versioned golden dataset
+with contamination controls, the statistical protocol (bootstrap CIs, McNemar's test), and the
+`ward bench run/compare/report` harness contract itself.
+
 ### 4.4 Agent framework (Phase 4) — *planned*
 
 The orchestrator drives specialized agents — Planner, Scanner, Verifier, Repair, Reviewer,

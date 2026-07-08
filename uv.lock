@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "cortexward-core",
     "cortexward-cpg",
+    "cortexward-eval",
     "cortexward-reporters",
     "cortexward-scanners",
     "cortexward-workspace",
@@ -212,6 +213,21 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7,<3" },
     { name = "tree-sitter", specifier = ">=0.23,<1" },
     { name = "tree-sitter-python", specifier = ">=0.23,<1" },
+]
+
+[[package]]
+name = "cortexward-eval"
+version = "0.1.0.dev0"
+source = { editable = "packages/cortexward-eval" }
+dependencies = [
+    { name = "cortexward-core" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cortexward-core", editable = "packages/cortexward-core" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
 ]
 
 [[package]]

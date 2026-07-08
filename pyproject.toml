@@ -39,6 +39,7 @@ src = [
   "packages/cortexward-cpg/src", "packages/cortexward-cpg/tests",
   "packages/cortexward-scanners/src", "packages/cortexward-scanners/tests",
   "packages/cortexward-reporters/src", "packages/cortexward-reporters/tests",
+  "packages/cortexward-eval/src", "packages/cortexward-eval/tests",
 ]
 
 [tool.ruff.lint]
@@ -91,6 +92,7 @@ mypy_path = [
   "packages/cortexward-cpg/src",
   "packages/cortexward-scanners/src",
   "packages/cortexward-reporters/src",
+  "packages/cortexward-eval/src",
 ]
 
 [[tool.mypy.overrides]]
@@ -117,6 +119,7 @@ testpaths = [
   "packages/cortexward-cpg/tests",
   "packages/cortexward-scanners/tests",
   "packages/cortexward-reporters/tests",
+  "packages/cortexward-eval/tests",
 ]
 markers = [
   "unit: fast, isolated unit tests",
@@ -161,6 +164,7 @@ forbidden_modules = [
   "cortexward.cpg",
   "cortexward.scanners",
   "cortexward.reporters",
+  "cortexward.eval",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -178,6 +182,7 @@ forbidden_modules = [
   "cortexward.cpg",
   "cortexward.scanners",
   "cortexward.reporters",
+  "cortexward.eval",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -195,6 +200,7 @@ forbidden_modules = [
   "cortexward.cpg",
   "cortexward.scanners",
   "cortexward.reporters",
+  "cortexward.eval",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -208,6 +214,7 @@ source_modules = ["cortexward.cpg"]
 forbidden_modules = [
   "cortexward.scanners",
   "cortexward.reporters",
+  "cortexward.eval",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -224,6 +231,7 @@ source_modules = ["cortexward.scanners"]
 forbidden_modules = [
   "cortexward.cpg",
   "cortexward.reporters",
+  "cortexward.eval",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",
@@ -240,6 +248,30 @@ source_modules = ["cortexward.reporters"]
 forbidden_modules = [
   "cortexward.cpg",
   "cortexward.scanners",
+  "cortexward.eval",
+  "cortexward.llm",
+  "cortexward.orchestrator",
+  "cortexward.sandbox",
+  "cortexward.storage",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+# cortexward.eval currently only needs cortexward.domain (Finding,
+# SourceLocation) for the RunManifest and matcher/metrics primitives. The
+# harness's future "ward bench run" command will need to invoke scanners
+# and reporters directly to produce results to measure — this contract is
+# expected to loosen (drop cortexward.scanners/cortexward.reporters) when
+# that orchestration lands, not a permanent restriction.
+[[tool.importlinter.contracts]]
+name = "Evaluation harness does not depend on other adapters or interfaces"
+type = "forbidden"
+source_modules = ["cortexward.eval"]
+forbidden_modules = [
+  "cortexward.cpg",
+  "cortexward.scanners",
+  "cortexward.reporters",
   "cortexward.llm",
   "cortexward.orchestrator",
   "cortexward.sandbox",

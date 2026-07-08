@@ -120,12 +120,27 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
 - ⏳ Semgrep adapter (needs an offline, non-registry rule pack — `--config=auto` requires
   network access to semgrep.dev, which conflicts with this project's offline-determinism bar).
 
-## Phase 3.5 — Evaluation harness ⏳ *(new; benchmark-first)*
+## Phase 3.5 — Evaluation harness 🚧 *(benchmark-first)*
 Built before advanced agents so every later feature is measured
 ([ADR-0007](docs/adr/0007-benchmark-first.md), [Evaluation Framework](docs/benchmark/evaluation-framework.md)).
-- `cortexward-eval`: metrics, statistical protocol, ablation support.
-- A versioned **golden dataset** with contamination controls.
-- The immutable **`RunManifest`** (git SHA, config, dataset, model, prompt, runtime, hardware, metrics).
+- ✅ **`RunManifest`** (`cortexward-eval`, new workspace package): the immutable per-run
+  provenance record from evaluation-framework.md §5 — git SHA, config hash, calibration profile,
+  dataset ref, model refs (with training cutoff, for the contamination split), prompt versions,
+  runtime/hardware, cost, and the metrics block. Frozen, strict pydantic models — the same
+  audit-critical strictness as the domain `Finding` aggregate.
+- ✅ **Deterministic finding-matcher & detection metrics** (`cortexward.eval.metrics`): matches
+  predicted `Finding`s against labeled `GroundTruthFinding`s by CWE compatibility + location
+  overlap (same file, overlapping line range), via greedy bipartite matching in input order — a
+  documented, reproducible matcher, not an approximate one, since TP/FP/FN counts must be
+  identical across repeated runs of the same inputs to be a meaningful research claim. Computes
+  precision/recall/F1, plus FPR/FNR redefined as `1 - precision`/`1 - recall` (there's no fixed
+  "negative" universe in open-ended vulnerability detection, unlike classifying a fixed labeled
+  set — documented explicitly rather than silently reusing the classic binary-classification
+  formula where it wouldn't apply).
+- ⏳ A versioned **golden dataset** with contamination controls (memorized/post-cutoff/mutated/
+  novel splits), the statistical protocol (bootstrap CIs, McNemar's test), and the `ward bench
+  run/compare/report` harness contract itself — these need the dataset-sourcing and CLI-surface
+  decisions the MPS defers to this phase, not yet made.
 
 ## Phase 4 — Agent framework ⏳
 Orchestrator (behind `OrchestratorPort`; LangGraph adapter) and agents (Planner, Scanner,

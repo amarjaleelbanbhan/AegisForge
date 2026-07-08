@@ -14,6 +14,25 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 3.5 (in progress) — Evaluation harness.**
+  - New workspace package `cortexward-eval`, depending on `cortexward-core`.
+  - **`RunManifest`** (`cortexward.eval.manifest`): the immutable per-run provenance record
+    (evaluation-framework.md §5) — git SHA, config hash, calibration profile, dataset ref, model
+    refs (with training cutoff, for contamination-split classification), prompt versions,
+    runtime/hardware, cost, and a `DetectionMetrics` block. Frozen, `extra="forbid"` pydantic
+    models, mirroring the domain `Finding` aggregate's strictness.
+  - **Deterministic finding-matcher & detection metrics** (`cortexward.eval.metrics`):
+    `match_findings()` matches predicted `Finding`s against labeled `GroundTruthFinding`s by CWE
+    compatibility + location overlap, via greedy bipartite matching in input order — documented
+    and reproducible, not merely "close enough," since TP/FP/FN counts must be identical across
+    repeated runs to be a valid research claim. `precision`/`recall`/`f1_score` plus
+    `false_positive_rate`/`false_negative_rate` (redefined as `1 - precision`/`1 - recall`, since
+    open-ended vulnerability detection has no fixed "negative" universe the classic
+    `FP / (FP + TN)` formula assumes — documented explicitly rather than silently misapplying it).
+  - A new "Evaluation harness does not depend on other adapters or interfaces" import-linter
+    contract, expected to loosen once the harness's `ward bench run` invokes scanners/reporters
+    directly.
+  - 100%-covered.
 - **Phase 3 (in progress) — Scanner adapters.**
   - New workspace package `cortexward-scanners`, depending on `cortexward-core`.
   - **Bandit adapter** (`cortexward.scanners.bandit_scanner.BanditScanner`): invokes
