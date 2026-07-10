@@ -11,8 +11,10 @@ decisions, and how the pieces fit together. For normative contracts (ports, doma
 security, data/DB design, APIs, evaluation), read the MPS.
 
 > **Audience:** engineers extending CortexWard, and reviewers evaluating its design.
-> **Status:** living summary. Phase 1 and 1.5 subsystems are implemented; later phases are
-> specified as contracts in the MPS before they are built.
+> **Status:** living summary. Phases 0–2 are implemented; Phase 3 (scanners), Phase 3.5
+> (evaluation), Phase 4 (agents), and Phase 8 (delivery surfaces) each have real, shipped
+> subsystems alongside still-open pieces — see §4 below and [ROADMAP.md](ROADMAP.md) for the
+> per-phase breakdown. Unbuilt phases are specified as contracts in the MPS before they are built.
 
 ---
 
