@@ -73,9 +73,12 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-  # Dogfooding: CortexWard scans itself. Bandit stands in for CortexWard's own
-  # scanner adapters (Phase 3); this job is replaced once cortexward-scanners
-  # exists, at which point `ward scan .` runs here instead.
+  # Dogfooding: CortexWard scans itself. Bandit stands in for `ward scan .`
+  # (which now exists, via cortexward-cli) until findings-suppression /
+  # baseline support lands — `ward scan packages` currently flags known
+  # false positives in this repo's own test fixtures (e.g. the deliberately
+  # fake secret literals in the detect-secrets adapter's own test suite),
+  # which would fail CI on every push without a way to mark them accepted.
   dogfood:
     name: Dogfood security scan
     runs-on: ubuntu-latest

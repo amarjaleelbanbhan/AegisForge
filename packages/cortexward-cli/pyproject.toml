@@ -1,0 +1,49 @@
+# cortexward-cli — the `ward` command-line interface (MPS §8, Phase 8).
+# Depends on cortexward-orchestrator (SequentialOrchestrator + scanner
+# auto-discovery) and cortexward-reporters (SARIF export) to wire the
+# already-built scan pipeline into an actual runnable tool.
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortexward-cli"
+version = "0.1.0.dev0"
+description = "The `ward` command-line interface for CortexWard."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CortexWard Contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+  "Environment :: Console",
+]
+
+dependencies = [
+  "cortexward-core",
+  "cortexward-orchestrator",
+  "cortexward-reporters",
+  "typer>=0.12,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
+Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[project.scripts]
+ward = "cortexward.cli.main:main"
+
+[tool.uv.sources]
+cortexward-core = { workspace = true }
+cortexward-orchestrator = { workspace = true }
+cortexward-reporters = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortexward"]

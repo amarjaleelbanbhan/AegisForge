@@ -42,6 +42,7 @@ src = [
   "packages/cortexward-eval/src", "packages/cortexward-eval/tests",
   "packages/cortexward-llm/src", "packages/cortexward-llm/tests",
   "packages/cortexward-orchestrator/src", "packages/cortexward-orchestrator/tests",
+  "packages/cortexward-cli/src", "packages/cortexward-cli/tests",
 ]
 
 [tool.ruff.lint]
@@ -97,6 +98,7 @@ mypy_path = [
   "packages/cortexward-eval/src",
   "packages/cortexward-llm/src",
   "packages/cortexward-orchestrator/src",
+  "packages/cortexward-cli/src",
 ]
 
 [[tool.mypy.overrides]]
@@ -126,6 +128,7 @@ testpaths = [
   "packages/cortexward-eval/tests",
   "packages/cortexward-llm/tests",
   "packages/cortexward-orchestrator/tests",
+  "packages/cortexward-cli/tests",
 ]
 markers = [
   "unit: fast, isolated unit tests",

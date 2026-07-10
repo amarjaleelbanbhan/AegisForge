@@ -253,7 +253,7 @@ runs end to end with no hardcoded scanner list. Unlike its peer adapter packages
 reporters, eval, llm), the orchestrator is deliberately *not* isolated from `cortexward.scanners`
 — coordinating other adapters is its whole job, so it sits above the peer-adapter layer rather than
 beside it; a narrower "does not depend on interface/delivery layers" contract still keeps it from
-reaching into the not-yet-built CLI/server/SDK. A LangGraph-backed orchestrator adapter and the
+reaching into the CLI/server/SDK layer above it. A LangGraph-backed orchestrator adapter and the
 seven agents themselves (Planner, Scanner, Verifier, Repair, Reviewer, Coordinator, Memory) are
 what's left of Phase 4 — these need real LLM-driven reasoning to be meaningfully testable, which
 needs the remaining native provider adapters this environment can't build without credentials.
@@ -271,6 +271,24 @@ Minimal-diff patches, never auto-merged. Every patch passes three gates before i
 existing tests still pass, scanners re-run clean, and **the original PoC no longer succeeds
 against the patched code**. This closes the loop: the same evidence that proved the bug proves
 the fix.
+
+### 4.7 Delivery surfaces (Phase 8) — *in progress*
+
+CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension — how CortexWard is
+actually invoked, as opposed to the library-only building blocks the earlier phases ship.
+
+`cortexward-cli` (depends on `cortexward-orchestrator` and `cortexward-reporters`) ships first,
+pulled forward from strict phase order: `ci.yml`'s dogfood job had long carried a comment noting
+it stood in for `ward scan .` "until cortexward-scanners exists," and by the time the orchestrator
+landed that condition was already met. `ward scan <path>` wires `default_scanners()` →
+`SequentialOrchestrator` → `SarifReporter` into a runnable tool (SARIF to stdout or `--output
+FILE`, `--language` filtering, `--fail-on` controlling the exit code). It is **not** wired into
+`ci.yml` yet: scanning this repo's own `packages/` surfaces real false positives in test fixtures
+(the detect-secrets adapter's own deliberately-fake secret literals, and the literal word
+"secret" in `detect-secrets = "..."` entry-point declarations) that a findings-suppression/
+baseline mechanism would need to mark accepted — without one, the dogfood job would fail on every
+push for reasons that aren't real vulnerabilities. The REST API, GitHub App/Action, and VS Code
+extension are the rest of Phase 8.
 
 ## 5. Cross-cutting concerns
 

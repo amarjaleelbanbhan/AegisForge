@@ -197,8 +197,21 @@ PoC artifacts, and VEX output.
 Minimal-diff automated repair with the three-gate validation (tests pass · rescan clean ·
 exploit neutralized) and regression prevention.
 
-## Phase 8 — Delivery surfaces ⏳
+## Phase 8 — Delivery surfaces 🚧
 CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
+- ✅ **`cortexward-cli`** (new workspace package, pulled forward from strict phase order): the
+  `ward` CLI, shipped early to close out `ci.yml`'s own long-standing dogfood-job note ("this job
+  is replaced once cortexward-scanners exists, at which point `ward scan .` runs here") now that
+  scanners and the orchestrator both exist. `ward scan <path>` wires `default_scanners()` →
+  `SequentialOrchestrator` → `SarifReporter` into a runnable tool: SARIF to stdout or `--output
+  FILE`, `--language` filtering, `--fail-on {none,low,medium,high,critical}` controlling the exit
+  code (default `high`). **Not yet wired into `ci.yml`**: `ward scan packages` currently flags
+  known false positives in this repo's own test fixtures (e.g. the deliberately fake secret
+  literals in the detect-secrets adapter's own tests) that a findings-suppression/baseline
+  mechanism would need to mark accepted — the dogfood job still runs bandit directly until that
+  exists. 100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/
+  `SecretsScanner` runs against fixtures (no mocking).
+- ⏳ REST API (FastAPI), GitHub App / Action, and a VS Code extension.
 
 ## Phase 9 — Benchmarks & evaluation ⏳
 Datasets with contamination controls (post-cutoff + mutated splits), detection/verification/

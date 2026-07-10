@@ -14,6 +14,22 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 8 (in progress) — Delivery surfaces: the `ward` CLI**, pulled forward from strict phase
+  order to close out `ci.yml`'s own long-standing dogfood-job note ("this job is replaced once
+  cortexward-scanners exists, at which point `ward scan .` runs here") now that scanners and the
+  orchestrator both exist.
+  - New workspace package `cortexward-cli`, depending on `cortexward-orchestrator` and
+    `cortexward-reporters`.
+  - `ward scan <path>` wires `default_scanners()` → `SequentialOrchestrator` → `SarifReporter`
+    into a runnable tool: SARIF to stdout or `--output FILE`, `--language` filtering, `--fail-on
+    {none,low,medium,high,critical}` controlling the exit code (default `high`).
+  - **Not wired into `ci.yml`**: `ward scan packages` currently flags known false positives in
+    this repo's own test fixtures (e.g. the deliberately fake secret literals in the
+    detect-secrets adapter's own test suite) that a findings-suppression/baseline mechanism would
+    need to mark accepted first — the dogfood job's comment is updated to reflect this, but it
+    still runs bandit directly rather than `ward scan`.
+  - 100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/`SecretsScanner`
+    runs against fixtures (no mocking) and explicit tests for the `main()`/`__main__` entry points.
 - **Phase 4 (in progress) — Agent framework: LLM abstraction.**
   - New workspace package `cortexward-llm`, depending on `cortexward-core`.
   - **`OllamaAdapter`** (`cortexward.llm.ollama_adapter.OllamaAdapter`): implements `LLMPort`
