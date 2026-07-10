@@ -180,10 +180,24 @@ cost-aware model router.
   ("does not depend on interface/delivery layers") still keeps it from reaching into the
   not-yet-built CLI/server/SDK. 100%-covered: fake-scanner unit tests plus a real end-to-end run
   with `BanditScanner`/`SecretsScanner` against a fixture with a known vulnerability and secret.
+- ✅ **`cortexward-agents`** (new workspace package): the agent-framework foundation — `RunState`
+  (stateless functions over shared, typed state per MPS §13), the `Agent` protocol, `ResilientLLM`
+  (retry + cross-adapter fallback), `run_tool_loop` (bounded tool-calling round trip), `load_prompt`
+  (versioned, hashed, package-bundled templates for all five v1 agent prompts), and the MPS §15
+  memory abstractions (`RepositoryMemory`/`GlobalKnowledge`). 100%-covered.
+- ✅ **Multi-provider `LLMPort`**: per the architecture decision that CortexWard must never depend
+  on a specific LLM provider, `build_llm(LLMProviderConfig)` (`cortexward.llm.provider_config`) is
+  now the one place that branches on provider identity. `OpenAICompatibleAdapter` (OpenAI, Groq,
+  OpenRouter, LM Studio, vLLM — one `/chat/completions`-shaped adapter differentiated by
+  `base_url`), `AnthropicAdapter` (`/v1/messages`), and `GeminiAdapter`
+  (`/models/{model}:generateContent`) fill out the remaining five of MPS §14's six required v1
+  adapters behind `LLMPort`, unit-tested against each provider's documented REST schema
+  (deterministic, no network — none is live-verified in this environment, unlike `OllamaAdapter`).
+  `load_llm_config()` reads a `provider`/`model`/`api_key(_env)`/`base_url` YAML file, so switching
+  providers is a configuration change only. 100%-covered.
 - ⏳ A LangGraph-backed orchestrator adapter and the seven agents themselves (Planner, Scanner,
-  Verifier, Repair, Reviewer, Coordinator, Memory) — these need real LLM-driven reasoning to be
-  meaningfully testable, which needs the remaining native provider adapters this environment can't
-  build without credentials it doesn't have.
+  Verifier, Repair, Reviewer, Coordinator, Memory), built on the `cortexward-agents` foundation
+  above and now genuinely testable end-to-end against the local Ollama backend.
 
 ## Phase 5 — Threat & architecture reasoning ⏳
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis

@@ -27,6 +27,7 @@ classifiers = [
 
 dependencies = [
   "cortexward-core",
+  "pyyaml>=6.0,<7",
 ]
 
 [project.urls]
@@ -35,6 +36,9 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 
 [project.entry-points."cortexward.llm"]
 ollama = "cortexward.llm.ollama_adapter:OllamaAdapter"
+openai = "cortexward.llm.openai_compatible_adapter:OpenAICompatibleAdapter"
+anthropic = "cortexward.llm.anthropic_adapter:AnthropicAdapter"
+gemini = "cortexward.llm.gemini_adapter:GeminiAdapter"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }

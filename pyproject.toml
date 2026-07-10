@@ -19,6 +19,7 @@ dev = [
   "pytest-cov>=5.0",
   "hypothesis>=6.100",
   "import-linter>=2.1",
+  "types-PyYAML>=6.0",
 ]
 
 [tool.uv]

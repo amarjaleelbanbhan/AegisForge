@@ -62,6 +62,52 @@ All notable changes to CortexWard are documented here. The format is based on
     it from reaching into the not-yet-built CLI/server/SDK. 100%-covered, including a real
     end-to-end run with `BanditScanner`/`SecretsScanner` against a fixture with a known
     vulnerability and secret.
+  - **`cortexward-agents`** (new workspace package): the agent-framework foundation the seven
+    agents (Planner, Scanner, Verifier, Repair, Reviewer, Coordinator, Memory) build on. `RunState`
+    (`cortexward.agents.state`) — a frozen dataclass carrying one run's findings/patches/notes,
+    updated only via `dataclasses.replace()`-based `with_*` methods (`with_findings` replaces;
+    `with_patches`/`with_note`/`with_completed`/`with_round_complete` append), mirroring the
+    `Finding.with_evidence()`/`with_state()` pattern already established in the domain core (MPS
+    §13: "agents are stateless functions over a shared, typed `RunState`"). `Agent`
+    (`cortexward.agents.protocol`) — a `runtime_checkable` `Protocol` (`name`, `run(state) ->
+    state`). `ResilientLLM` (`cortexward.agents.resilient_llm`) — wraps an ordered `LLMPort`
+    sequence with per-adapter retry (exponential backoff, injectable `sleep` for deterministic
+    tests) and cross-adapter fallback, raising `AllAdaptersFailedError` only once every adapter is
+    exhausted. `run_tool_loop` (`cortexward.agents.tools`) — the bounded tool-calling round trip
+    (send request → execute any `tool_calls` → append `TOOL` messages → resend, capped by
+    `max_iterations`), documented as not universal since not every backend populates `tool_calls`
+    structurally. `load_prompt` (`cortexward.agents.prompt_loader`) — loads versioned, hashed
+    prompt templates bundled as real package data under `cortexward/agents/prompts/<name>/<version>
+    .md` (verified via an actual `uv build` + wheel inspection, not assumed), covering all five v1
+    agent prompts (planner, verifier, repair, reviewer, coordinator). Memory abstractions
+    (`cortexward.agents.memory`, MPS §15's three-tier model) — `fingerprint_for()` plus
+    `RepositoryMemory`/`InMemoryRepositoryMemory` (tier 2: suppressions) and
+    `GlobalKnowledge`/`StaticGlobalKnowledge` (tier 3: a small built-in CWE-summary catalog).
+    100%-covered; a new "Agents do not depend on interface/delivery layers" import-linter contract
+    (forbidding only `cli`/`server`/`sdk`, not peer adapters, since agents coordinate other
+    packages the way the orchestrator does).
+  - **Provider-agnostic `LLMPort` factory** (`cortexward.llm.provider_config`): per the
+    architecture decision that CortexWard must never depend on a specific LLM provider,
+    `build_llm(LLMProviderConfig) -> LLMPort` is now the *one* place in the codebase that branches
+    on provider identity — every other component still depends on `LLMPort` alone. Three new
+    reference adapters fill out MPS §14's provider list behind that one factory:
+    **`OpenAICompatibleAdapter`** (one adapter, `base_url`-differentiated, covers OpenAI, Groq,
+    OpenRouter, LM Studio, and self-hosted vLLM — all speak the same `/chat/completions` schema),
+    **`AnthropicAdapter`** (`/v1/messages`; a top-level `system` field rather than a message role;
+    `max_tokens` required, so a request that omits it gets a documented default; typed `content`
+    blocks parsed into text/tool-use), and **`GeminiAdapter`** (`/models/{model}:generateContent`;
+    API key as a query parameter; `user`/`model` roles and `contents[].parts`; `functionCall` args
+    already parsed, unlike OpenAI's JSON-encoded-string arguments). None of the three is
+    live-verified in this environment (no commercial API keys) — each is unit-tested against its
+    provider's own published, stable REST schema instead (deterministic, no network), consistent
+    with `OllamaAdapter` staying the only adapter genuinely exercised against a live server here.
+    `cost_estimate` raises `NotImplementedError` on all three rather than returning `0.0`, since
+    none has a maintained per-model price table and misrepresenting a paid API as free would be
+    actively wrong. `load_llm_config()` (`cortexward.llm.config_loader`) reads one
+    `LLMProviderConfig` from a YAML file (`provider`, `model`, optional
+    `api_key`/`api_key_env`/`base_url`), so switching providers is a configuration change, never an
+    application-code change — malformed config raises `LLMConfigError` with a clear reason rather
+    than a bare `KeyError` from deep inside the loader. 100%-covered.
 - **Phase 3.5 (in progress) — Evaluation harness.**
   - New workspace package `cortexward-eval`, depending on `cortexward-core`.
   - **`RunManifest`** (`cortexward.eval.manifest`): the immutable per-run provenance record
