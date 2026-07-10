@@ -14,6 +14,26 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 4 (in progress) — Agent framework: LLM abstraction.**
+  - New workspace package `cortexward-llm`, depending on `cortexward-core`.
+  - **`OllamaAdapter`** (`cortexward.llm.ollama_adapter.OllamaAdapter`): implements `LLMPort`
+    against a local Ollama server's `/api/chat`, over stdlib `urllib` (no new HTTP dependency,
+    mirroring the OSV scanner's approach). Needs no API key — the only one of the MPS's six
+    required v1 adapters buildable and genuinely integration-testable without provider
+    credentials. `cost_estimate` is always `0.0` (local inference has no per-token billing);
+    `count_tokens` is a documented ~4-chars-per-token heuristic. A connection failure raises
+    `OllamaError` rather than degrading silently, unlike a scanner's "one unreachable source
+    shouldn't abort the scan" — a caller invoking an LLM adapter is relying on getting a real
+    completion back. 100%-covered: deterministic monkeypatched request/response-mapping tests
+    (always run) plus a `TestLiveOllama` class that exercises a real local server when reachable
+    and skips otherwise (this project's CI has no Ollama installed, unlike OSV.dev's public API).
+  - **`ModelRouter`** (`cortexward.llm.router.ModelRouter`): the declarative task-class →
+    model-tier → adapter router from MPS §14 — `TRIAGE`/`REASONING`/`PATCH_GENERATION` route to
+    `CHEAP`/`STRONG` by default, config-driven and overridable per run (`tier_overrides`), with
+    `offline=True` pinning every task class to the local tier. Fully unit-tested against fake
+    `LLMPort` adapters, no network dependency.
+  - Registered under the `cortexward.llm` entry-point group; a new "LLM adapters do not depend on
+    other adapters or interfaces" import-linter contract mirrors the existing adapter-family ones.
 - **Phase 3.5 (in progress) — Evaluation harness.**
   - New workspace package `cortexward-eval`, depending on `cortexward-core`.
   - **`RunManifest`** (`cortexward.eval.manifest`): the immutable per-run provenance record

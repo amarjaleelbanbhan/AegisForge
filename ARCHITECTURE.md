@@ -223,11 +223,26 @@ matched binary "detected / not" outcomes, using an exact closed-form chi-square(
 Still missing: the versioned golden dataset with contamination controls, and the
 `ward bench run/compare/report` harness contract itself.
 
-### 4.4 Agent framework (Phase 4) — *planned*
+### 4.4 Agent framework (Phase 4) — *in progress*
 
 The orchestrator drives specialized agents — Planner, Scanner, Verifier, Repair, Reviewer,
 Coordinator, and Memory — over a shared, typed run state. An `LLMPort` abstracts providers
 and a **cost-aware router** sends triage to cheap models and reasoning/repair to strong ones.
+
+`cortexward-llm` (depends on `cortexward-core`) ships the LLM abstraction so far. `OllamaAdapter`
+implements `LLMPort` against a local Ollama server's `/api/chat` over stdlib `urllib` — no API
+key needed (Ollama runs entirely on-device), and the only one of the MPS's six required v1
+adapters (native Anthropic, native OpenAI, Gemini, Ollama, OpenAI-compatible, LiteLLM) this
+environment can genuinely integration-test, since it has no provider credentials. `cost_estimate`
+is always `0.0` (no per-token billing for local inference); `count_tokens` is a documented
+~4-chars-per-token heuristic, since Ollama exposes no standalone tokenizer endpoint. A connection
+failure raises `OllamaError` rather than degrading silently — unlike a scanner, where one
+unreachable source shouldn't abort a whole scan, a caller invoking an LLM adapter is relying on
+getting a real completion back. `ModelRouter` is the declarative task-class → model-tier → adapter
+router MPS §14 specifies: `TRIAGE`/`REASONING`/`PATCH_GENERATION` route to `CHEAP`/`STRONG` by
+default, config-driven and overridable per run, with `offline=True` pinning every task class to
+the local tier. The Orchestrator, `OrchestratorPort` implementation, and the seven agents
+themselves are what's left of Phase 4.
 
 ### 4.5 Verification & sandbox (Phase 6) — *planned*
 

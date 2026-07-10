@@ -11,6 +11,7 @@ members = [
     "cortexward-core",
     "cortexward-cpg",
     "cortexward-eval",
+    "cortexward-llm",
     "cortexward-reporters",
     "cortexward-scanners",
     "cortexward-workspace",
@@ -229,6 +230,17 @@ requires-dist = [
     { name = "cortexward-core", editable = "packages/cortexward-core" },
     { name = "pydantic", specifier = ">=2.7,<3" },
 ]
+
+[[package]]
+name = "cortexward-llm"
+version = "0.1.0.dev0"
+source = { editable = "packages/cortexward-llm" }
+dependencies = [
+    { name = "cortexward-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "cortexward-core", editable = "packages/cortexward-core" }]
 
 [[package]]
 name = "cortexward-reporters"

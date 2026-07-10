@@ -148,10 +148,28 @@ Built before advanced agents so every later feature is measured
   novel splits) and the `ward bench run/compare/report` harness contract itself — these need the
   dataset-sourcing and CLI-surface decisions the MPS defers to this phase, not yet made.
 
-## Phase 4 — Agent framework ⏳
+## Phase 4 — Agent framework 🚧
 Orchestrator (behind `OrchestratorPort`; LangGraph adapter) and agents (Planner, Scanner,
 Verifier, Repair, Reviewer, Coordinator, Memory), an `LLMPort` with pluggable backends, and a
 cost-aware model router.
+- ✅ **`cortexward-llm`** (new workspace package): the owned LLM abstraction (MPS §14, ADR-0006).
+  - **`OllamaAdapter`** implements `LLMPort` against a local Ollama server's `/api/chat` — needs no
+    API key (Ollama runs entirely on-device), and is the only one of the MPS's six required v1
+    adapters (Anthropic, OpenAI, Gemini, Ollama, OpenAI-compatible, LiteLLM) buildable and
+    genuinely integration-testable without provider credentials this environment doesn't have.
+    `cost_estimate` is always `0.0` (no per-token billing for local inference); `count_tokens` is
+    a documented ~4-chars-per-token heuristic (Ollama exposes no standalone tokenizer endpoint).
+    100%-covered via monkeypatched request/response-mapping tests (deterministic, always run) plus
+    a small `TestLiveOllama` class that talks to a real local server when one is reachable and
+    skips otherwise — this project's CI has no Ollama installed, unlike OSV.dev's public API.
+  - **`ModelRouter`**: the declarative task-class → model-tier → adapter router from MPS §14
+    (`TRIAGE`/`REASONING`/`PATCH_GENERATION` → `CHEAP`/`STRONG`), config-driven and overridable per
+    run (`tier_overrides`), with `offline=True` pinning every task class to the local tier. Fully
+    unit-tested against fake `LLMPort` adapters — no network dependency at all.
+  - Registered under the `cortexward.llm` entry-point group; a new "LLM adapters do not depend on
+    other adapters or interfaces" import-linter contract mirrors the existing adapter-family ones.
+- ⏳ The Orchestrator, `OrchestratorPort` implementation, and the seven agents (Planner, Scanner,
+  Verifier, Repair, Reviewer, Coordinator, Memory) themselves.
 
 ## Phase 5 — Threat & architecture reasoning ⏳
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis
