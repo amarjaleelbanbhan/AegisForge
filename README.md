@@ -8,15 +8,20 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)](ROADMAP.md)
+[![CLI](https://img.shields.io/badge/CLI-ward_scan-2a6db2.svg)](packages/cortexward-cli)
 [![Typed](https://img.shields.io/badge/typed-mypy_strict-2a6db2.svg)](pyproject.toml)
 
 </div>
 
 ---
 
-> **Status: Pre-alpha (Phase 1.5).** The domain core, port catalog, plugin registry, and a
-> multi-package workspace are in place. CortexWard is being built one milestone at a time —
-> see the [Roadmap](ROADMAP.md).
+> **Status: Pre-alpha.** Phases 0–2 (foundation, workspace, Code Property Graph engine) are
+> complete; Phase 3 (scanners) has Bandit, detect-secrets, and OSV.dev adapters with cross-tool
+> correlation and SARIF export; Phase 3.5 (evaluation) and Phase 4 (agents) have their
+> foundational, non-LLM-dependent pieces (`RunManifest`, the statistical protocol, the LLM
+> abstraction, and a sequential orchestrator) in place. The `ward` CLI (Phase 8) already runs a
+> real scan end to end — see [Try it](#try-it) below. CortexWard is being built one milestone at
+> a time — see the [Roadmap](ROADMAP.md) for exactly what's done versus planned per phase.
 >
 > 📐 **Single source of truth:** the [Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)
 > is **approved and frozen**. Architecture changes only via [ADRs](docs/adr/README.md). See the
@@ -67,22 +72,42 @@ CortexWard uses a hexagonal (ports-and-adapters) design with an in-process, insp
 agent orchestrator. Everything that touches the outside world is a pluggable adapter.
 
 ```
-Interfaces:   CLI · REST API · GitHub App · VS Code extension           (packages/cortexward-{cli,server,sdk})
+Interfaces:   CLI (ward) · REST API · GitHub App · VS Code extension    (packages/cortexward-{cli,server,sdk})
 Application:  Orchestrator → Planner · Scanner · Verifier · Repair · Reviewer · Memory
 Domain core:  Finding · Evidence · Verification Ladder · Patch · Provenance   ← pure, no I/O
 Ports:        CodeGraph · LanguageProvider · Scanner · LLM · Sandbox · VCS
               · Storage · Telemetry · Orchestrator · Reporter   (cortexward.ports, typing.Protocol)
 Plugins:      entry-point discovery — a new adapter needs zero core changes (cortexward.plugins)
-Adapters:     tree-sitter CPG · Semgrep/Bandit/CodeQL · Anthropic/OpenAI/Ollama · Docker …
+Adapters:     tree-sitter CPG · Bandit/detect-secrets/OSV.dev · Ollama · SARIF · sequential orchestrator
 ```
 
 `cortexward-core` ships the domain model, the full port catalog, and the plugin registry.
-`cortexward-cpg` (depends on `cortexward-core`) ships the reference Code Property Graph engine
-— a language-agnostic node/edge schema and an in-memory `CodeGraph` implementation with
-cycle-safe reachability/taint/slice queries; tree-sitter-based parsing into it is in progress.
-Every other row is an independently versioned package under [`packages/`](packages/), added as
-its phase lands — see [ARCHITECTURE.md](ARCHITECTURE.md) and
+`cortexward-cpg` (depends on `cortexward-core`) ships the Code Property Graph engine — AST,
+control-flow, data-flow, and call-graph builders over tree-sitter, plus dependency-manifest
+parsing — and the reference in-memory `CodeGraph` implementation with cycle-safe
+reachability/taint/slice queries (Phase 2, complete). `cortexward-scanners` ships `BanditScanner`,
+`SecretsScanner` (detect-secrets), and `OsvScanner` (OSV.dev), plus cross-tool normalization and
+correlation into `Finding`s. `cortexward-reporters` ships a SARIF 2.1.0 `ReporterPort`.
+`cortexward-eval` ships the `RunManifest` provenance record and the statistical protocol
+(bootstrap CIs, McNemar's test). `cortexward-llm` ships an `OllamaAdapter` (the only `LLMPort`
+backend buildable without provider credentials) and a cost-aware `ModelRouter`.
+`cortexward-orchestrator` ships `SequentialOrchestrator`, wiring every auto-discovered scanner
+into one correlated `Finding` list. `cortexward-cli` ships `ward scan` on top of all of the
+above. Every package is independently versioned under [`packages/`](packages/), added as its
+phase lands — see [ARCHITECTURE.md](ARCHITECTURE.md) and
 [ADR-0005](docs/adr/0005-uv-workspace-monorepo.md).
+
+## Try it
+
+```bash
+uv run ward scan .                       # scan the current directory, SARIF to stdout
+uv run ward scan . -o results.sarif      # write SARIF to a file instead
+uv run ward scan . --fail-on critical    # only exit non-zero on critical findings
+```
+
+`ward scan` auto-discovers every installed scanner (`cortexward.scanners` entry points),
+runs each one, correlates their findings by CWE + location into the domain `Finding` model, and
+renders the result as SARIF — real, working code, not a roadmap promise.
 
 ## Quickstart (development)
 
@@ -134,9 +159,16 @@ print(report.recommended_state, report.vex_status, round(report.confidence, 2))
 
 ## Roadmap
 
-CortexWard is built in strict, shippable phases. Phase 1 delivered the foundation and the
-tested domain core; Phase 1.5 (this milestone) delivers the workspace restructure, the port
-catalog, the plugin registry, and hardened CI. See [ROADMAP.md](ROADMAP.md) for every phase.
+CortexWard is built in strict, shippable phases, each with tests, documentation, and a green
+CI before the next begins. Phases 0–2 (foundation, workspace, Code Property Graph) are complete.
+Phase 3 (scanners) has three adapters, cross-tool correlation, and SARIF export — a Semgrep
+adapter and dependency-vulnerability scanning beyond exact-pinned versions remain, both blocked
+on design decisions documented in [ROADMAP.md](ROADMAP.md). Phase 3.5 (evaluation) and Phase 4
+(agents) have their non-LLM-dependent foundations in place; the LangGraph orchestrator, the seven
+agents, and the golden benchmark dataset all need either real LLM-driven reasoning or dataset-
+sourcing decisions this environment can't make unilaterally. Phase 8's `ward` CLI was pulled
+forward early since scanning was already real. See [ROADMAP.md](ROADMAP.md) for the full,
+per-phase breakdown of what's done versus planned.
 
 ## Contributing
 
