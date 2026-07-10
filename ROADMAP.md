@@ -168,8 +168,22 @@ cost-aware model router.
     unit-tested against fake `LLMPort` adapters — no network dependency at all.
   - Registered under the `cortexward.llm` entry-point group; a new "LLM adapters do not depend on
     other adapters or interfaces" import-linter contract mirrors the existing adapter-family ones.
-- ⏳ The Orchestrator, `OrchestratorPort` implementation, and the seven agents (Planner, Scanner,
-  Verifier, Repair, Reviewer, Coordinator, Memory) themselves.
+- ✅ **`cortexward-orchestrator`** (new workspace package): `SequentialOrchestrator` implements
+  `OrchestratorPort` — runs every configured `ScannerPort` in sequence, then normalizes and
+  correlates the results into `Finding`s via `cortexward.scanners.correlate`. No LLM or agent
+  reasoning yet; this is the reference in-process orchestrator that "run every scanner and merge
+  the results" needs before any agent-driven planning/verification/repair. `default_scanners()`
+  auto-discovers every scanner registered under the `cortexward.scanners` entry-point group, so a
+  full scan → correlate → SARIF pipeline runs end to end with zero hardcoded scanner list. Unlike
+  its peer adapter packages, the orchestrator is deliberately *not* isolated from
+  `cortexward.scanners` — coordinating other adapters is its whole job — but a narrower contract
+  ("does not depend on interface/delivery layers") still keeps it from reaching into the
+  not-yet-built CLI/server/SDK. 100%-covered: fake-scanner unit tests plus a real end-to-end run
+  with `BanditScanner`/`SecretsScanner` against a fixture with a known vulnerability and secret.
+- ⏳ A LangGraph-backed orchestrator adapter and the seven agents themselves (Planner, Scanner,
+  Verifier, Repair, Reviewer, Coordinator, Memory) — these need real LLM-driven reasoning to be
+  meaningfully testable, which needs the remaining native provider adapters this environment can't
+  build without credentials it doesn't have.
 
 ## Phase 5 — Threat & architecture reasoning ⏳
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis

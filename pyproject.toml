@@ -41,6 +41,7 @@ src = [
   "packages/cortexward-reporters/src", "packages/cortexward-reporters/tests",
   "packages/cortexward-eval/src", "packages/cortexward-eval/tests",
   "packages/cortexward-llm/src", "packages/cortexward-llm/tests",
+  "packages/cortexward-orchestrator/src", "packages/cortexward-orchestrator/tests",
 ]
 
 [tool.ruff.lint]
@@ -95,6 +96,7 @@ mypy_path = [
   "packages/cortexward-reporters/src",
   "packages/cortexward-eval/src",
   "packages/cortexward-llm/src",
+  "packages/cortexward-orchestrator/src",
 ]
 
 [[tool.mypy.overrides]]
@@ -123,6 +125,7 @@ testpaths = [
   "packages/cortexward-reporters/tests",
   "packages/cortexward-eval/tests",
   "packages/cortexward-llm/tests",
+  "packages/cortexward-orchestrator/tests",
 ]
 markers = [
   "unit: fast, isolated unit tests",
@@ -296,6 +299,21 @@ forbidden_modules = [
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+# The orchestrator is deliberately NOT held to the same "no other adapters"
+# contract as its peers above: its whole job is coordinating them (it
+# already depends on cortexward.scanners; cortexward.cpg/llm/reporters are
+# expected as agent-driven capabilities land). It still must not depend on
+# the delivery/interface layers that call *into* it.
+[[tool.importlinter.contracts]]
+name = "Orchestrator does not depend on interface/delivery layers"
+type = "forbidden"
+source_modules = ["cortexward.orchestrator"]
+forbidden_modules = [
   "cortexward.cli",
   "cortexward.server",
   "cortexward.sdk",

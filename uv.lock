@@ -12,6 +12,7 @@ members = [
     "cortexward-cpg",
     "cortexward-eval",
     "cortexward-llm",
+    "cortexward-orchestrator",
     "cortexward-reporters",
     "cortexward-scanners",
     "cortexward-workspace",
@@ -241,6 +242,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "cortexward-core", editable = "packages/cortexward-core" }]
+
+[[package]]
+name = "cortexward-orchestrator"
+version = "0.1.0.dev0"
+source = { editable = "packages/cortexward-orchestrator" }
+dependencies = [
+    { name = "cortexward-core" },
+    { name = "cortexward-scanners" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cortexward-core", editable = "packages/cortexward-core" },
+    { name = "cortexward-scanners", editable = "packages/cortexward-scanners" },
+]
 
 [[package]]
 name = "cortexward-reporters"

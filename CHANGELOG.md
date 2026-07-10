@@ -34,6 +34,18 @@ All notable changes to CortexWard are documented here. The format is based on
     `LLMPort` adapters, no network dependency.
   - Registered under the `cortexward.llm` entry-point group; a new "LLM adapters do not depend on
     other adapters or interfaces" import-linter contract mirrors the existing adapter-family ones.
+  - **`SequentialOrchestrator`** — new workspace package `cortexward-orchestrator`, depending on
+    `cortexward-core` and `cortexward-scanners`. Implements `OrchestratorPort`: runs every
+    configured `ScannerPort` in sequence, then correlates the results into `Finding`s via
+    `cortexward.scanners.correlate`. No LLM/agent reasoning yet — the reference in-process
+    orchestrator "run every scanner and merge the results" needs before agent-driven planning.
+    `default_scanners()` auto-discovers every scanner registered under `cortexward.scanners`, so a
+    full scan → correlate → SARIF pipeline runs end to end with no hardcoded scanner list. Unlike
+    its peer adapters, deliberately *not* isolated from `cortexward.scanners` (coordinating other
+    adapters is its job); a narrower "does not depend on interface/delivery layers" contract keeps
+    it from reaching into the not-yet-built CLI/server/SDK. 100%-covered, including a real
+    end-to-end run with `BanditScanner`/`SecretsScanner` against a fixture with a known
+    vulnerability and secret.
 - **Phase 3.5 (in progress) — Evaluation harness.**
   - New workspace package `cortexward-eval`, depending on `cortexward-core`.
   - **`RunManifest`** (`cortexward.eval.manifest`): the immutable per-run provenance record

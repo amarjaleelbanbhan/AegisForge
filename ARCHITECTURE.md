@@ -241,8 +241,22 @@ unreachable source shouldn't abort a whole scan, a caller invoking an LLM adapte
 getting a real completion back. `ModelRouter` is the declarative task-class → model-tier → adapter
 router MPS §14 specifies: `TRIAGE`/`REASONING`/`PATCH_GENERATION` route to `CHEAP`/`STRONG` by
 default, config-driven and overridable per run, with `offline=True` pinning every task class to
-the local tier. The Orchestrator, `OrchestratorPort` implementation, and the seven agents
-themselves are what's left of Phase 4.
+the local tier.
+
+`cortexward-orchestrator` (depends on `cortexward-core` and `cortexward-scanners`) ships the first
+`OrchestratorPort` implementation: `SequentialOrchestrator` runs every configured `ScannerPort` in
+sequence, then correlates the results into `Finding`s via `cortexward.scanners.correlate` — no LLM
+or agent reasoning yet, just "run every scanner and merge the results," which every later
+agent-driven capability builds on top of rather than replaces. `default_scanners()` auto-discovers
+every scanner registered under `cortexward.scanners`, so a full scan → correlate → SARIF pipeline
+runs end to end with no hardcoded scanner list. Unlike its peer adapter packages (cpg, scanners,
+reporters, eval, llm), the orchestrator is deliberately *not* isolated from `cortexward.scanners`
+— coordinating other adapters is its whole job, so it sits above the peer-adapter layer rather than
+beside it; a narrower "does not depend on interface/delivery layers" contract still keeps it from
+reaching into the not-yet-built CLI/server/SDK. A LangGraph-backed orchestrator adapter and the
+seven agents themselves (Planner, Scanner, Verifier, Repair, Reviewer, Coordinator, Memory) are
+what's left of Phase 4 — these need real LLM-driven reasoning to be meaningfully testable, which
+needs the remaining native provider adapters this environment can't build without credentials.
 
 ### 4.5 Verification & sandbox (Phase 6) — *planned*
 

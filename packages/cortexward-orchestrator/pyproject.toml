@@ -1,0 +1,43 @@
+# cortexward-orchestrator — OrchestratorPort implementations (MPS §13,
+# ADR-0002). Unlike the other adapter packages (cpg, scanners, reporters,
+# eval, llm), the orchestrator's whole job is to coordinate *other*
+# adapters, so it legitimately depends on cortexward-scanners — it sits
+# above the peer-adapter layer, not beside it.
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortexward-orchestrator"
+version = "0.1.0.dev0"
+description = "CortexWard OrchestratorPort implementations."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CortexWard Contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  "cortexward-core",
+  "cortexward-scanners",
+]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
+Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[tool.uv.sources]
+cortexward-core = { workspace = true }
+cortexward-scanners = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortexward"]
