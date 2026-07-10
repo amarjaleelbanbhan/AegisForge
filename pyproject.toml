@@ -43,6 +43,7 @@ src = [
   "packages/cortexward-llm/src", "packages/cortexward-llm/tests",
   "packages/cortexward-orchestrator/src", "packages/cortexward-orchestrator/tests",
   "packages/cortexward-cli/src", "packages/cortexward-cli/tests",
+  "packages/cortexward-agents/src", "packages/cortexward-agents/tests",
 ]
 
 [tool.ruff.lint]
@@ -99,6 +100,7 @@ mypy_path = [
   "packages/cortexward-llm/src",
   "packages/cortexward-orchestrator/src",
   "packages/cortexward-cli/src",
+  "packages/cortexward-agents/src",
 ]
 
 [[tool.mypy.overrides]]
@@ -129,6 +131,7 @@ testpaths = [
   "packages/cortexward-llm/tests",
   "packages/cortexward-orchestrator/tests",
   "packages/cortexward-cli/tests",
+  "packages/cortexward-agents/tests",
 ]
 markers = [
   "unit: fast, isolated unit tests",
@@ -175,6 +178,7 @@ forbidden_modules = [
   "cortexward.reporters",
   "cortexward.eval",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -193,6 +197,7 @@ forbidden_modules = [
   "cortexward.reporters",
   "cortexward.eval",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -211,6 +216,7 @@ forbidden_modules = [
   "cortexward.reporters",
   "cortexward.eval",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -225,6 +231,7 @@ forbidden_modules = [
   "cortexward.reporters",
   "cortexward.eval",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -242,6 +249,7 @@ forbidden_modules = [
   "cortexward.reporters",
   "cortexward.eval",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -259,6 +267,7 @@ forbidden_modules = [
   "cortexward.scanners",
   "cortexward.eval",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -282,6 +291,7 @@ forbidden_modules = [
   "cortexward.scanners",
   "cortexward.reporters",
   "cortexward.llm",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
@@ -299,9 +309,25 @@ forbidden_modules = [
   "cortexward.scanners",
   "cortexward.reporters",
   "cortexward.eval",
+  "cortexward.agents",
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+# Agents coordinate scanners/LLM adapters directly (cortexward-agents already
+# depends on cortexward-llm and cortexward-scanners), so -- like the
+# orchestrator -- they are deliberately NOT held to the peer-adapter "no
+# other adapters" contract. They still must not depend on the
+# delivery/interface layers that call *into* them.
+[[tool.importlinter.contracts]]
+name = "Agents do not depend on interface/delivery layers"
+type = "forbidden"
+source_modules = ["cortexward.agents"]
+forbidden_modules = [
   "cortexward.cli",
   "cortexward.server",
   "cortexward.sdk",
