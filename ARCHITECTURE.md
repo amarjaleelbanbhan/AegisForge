@@ -248,17 +248,28 @@ the local tier.
 `cortexward-orchestrator` (depends on `cortexward-core` and `cortexward-scanners`) ships the first
 `OrchestratorPort` implementation: `SequentialOrchestrator` runs every configured `ScannerPort` in
 sequence, then correlates the results into `Finding`s via `cortexward.scanners.correlate` — no LLM
-or agent reasoning yet, just "run every scanner and merge the results," which every later
-agent-driven capability builds on top of rather than replaces. `default_scanners()` auto-discovers
-every scanner registered under `cortexward.scanners`, so a full scan → correlate → SARIF pipeline
-runs end to end with no hardcoded scanner list. Unlike its peer adapter packages (cpg, scanners,
-reporters, eval, llm), the orchestrator is deliberately *not* isolated from `cortexward.scanners`
-— coordinating other adapters is its whole job, so it sits above the peer-adapter layer rather than
-beside it; a narrower "does not depend on interface/delivery layers" contract still keeps it from
-reaching into the CLI/server/SDK layer above it. A LangGraph-backed orchestrator adapter and the
-seven agents themselves (Planner, Scanner, Verifier, Repair, Reviewer, Coordinator, Memory) are
-what's left of Phase 4 — these need real LLM-driven reasoning to be meaningfully testable, which
-needs the remaining native provider adapters this environment can't build without credentials.
+or agent reasoning, just "run every scanner and merge the results." `default_scanners()`
+auto-discovers every scanner registered under `cortexward.scanners`, so a full scan → correlate →
+SARIF pipeline runs end to end with no hardcoded scanner list. Unlike its peer adapter packages
+(cpg, scanners, reporters, eval, llm), the orchestrator is deliberately *not* isolated from
+`cortexward.scanners` — coordinating other adapters is its whole job.
+
+`cortexward-agents` (depends on `cortexward-core`, `cortexward-llm`, `cortexward-scanners`) ships
+the framework foundation — `RunState` (stateless functions over shared, typed state), the `Agent`
+protocol, `ResilientLLM` (retry + cross-adapter fallback), `run_tool_loop`, versioned/hashed
+prompt templates, and the MPS §15 memory abstractions — plus all seven agents built on it and
+`AgentOrchestrator`, the agent-driven `OrchestratorPort` implementation. `VerifierAgent` is where
+the LLM-insufficiency policy from §2/§4.1 becomes directly observable in agent code: it attaches
+an `LLM_ASSESSMENT` `Evidence` via `apply_assessment()`, the same sanctioned lifecycle transition
+every other caller uses — no agent-specific bypass exists, so a model can never, by construction,
+move a finding to `VERIFIED` on its own. `ReviewerAgent` mirrors the same discipline for patches:
+its advisory verdict is a `RunState` note, never a `Patch` gate field. `default_agents()`
+assembles the standard Planner → Scanner → Verifier → Repair → Reviewer → Memory → Coordinator
+pipeline; a genuine end-to-end run against a real local Ollama server and a real `BanditScanner`
+finding backs the unit-test suite. Still open for Phase 4: a LangGraph-backed `OrchestratorPort`
+adapter (`AgentOrchestrator`'s single fixed pass is the reference implementation, not the only one
+MPS §13 anticipates), and independent verification evidence (reachability/taint/PoC) beyond LLM
+assessment — needed for any finding to actually reach `VERIFIED`.
 
 ### 4.5 Verification & sandbox (Phase 6) — *planned*
 

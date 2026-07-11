@@ -108,6 +108,29 @@ All notable changes to CortexWard are documented here. The format is based on
     `api_key`/`api_key_env`/`base_url`), so switching providers is a configuration change, never an
     application-code change — malformed config raises `LLMConfigError` with a clear reason rather
     than a bare `KeyError` from deep inside the loader. 100%-covered.
+  - **The seven agents and `AgentOrchestrator`** (`cortexward.agents.orchestrator`), completing the
+    `cortexward-agents` foundation above. `PlannerAgent` renders a run plan from the target root
+    and languages. `ScannerAgent` runs every configured `ScannerPort` and correlates the results —
+    the same step `SequentialOrchestrator` performs, as one `Agent`. `VerifierAgent` asks the model
+    for a `VERDICT: REAL|FALSE_POSITIVE|UNCERTAIN - <reason>` per finding and attaches it as an
+    `LLM_ASSESSMENT` `Evidence` via `finding.with_evidence(...)` + `apply_assessment(...)` —
+    structurally this agent can never singlehandedly move a finding to `VERIFIED`: the domain's
+    LLM-insufficiency policy caps LLM-only confidence below `VERIFIED_THRESHOLD` regardless of
+    verdict. `RepairAgent` proposes a candidate `Patch` (parsed from a `DESCRIPTION:`/`DIFF:`
+    response) for each `VERIFIED` finding only; an unparseable response is skipped, not
+    fabricated. `ReviewerAgent` records an advisory APPROVE/REJECT/NEEDS_CHANGES verdict as a
+    `RunState` note only — it deliberately never sets `Patch.tests_pass`/`rescan_clean`/
+    `exploit_neutralized`, since an LLM opinion can't honestly stand in for the three-gate
+    validation MPS §16 requires before `Patch.is_validated`. `MemoryAgent` dismisses findings
+    matching a known `RepositoryMemory` suppression and persists newly `REFUTED` findings as new
+    ones. `CoordinatorAgent` renders the final run summary. `AgentOrchestrator` implements
+    `OrchestratorPort` by running a fixed `Agent` sequence over one `RunState` — the same drop-in
+    `run(request) -> RunResult` contract `SequentialOrchestrator` satisfies; `default_agents()`
+    assembles the standard seven-agent pipeline. 100%-covered with deterministic scripted-LLM unit
+    tests (including verifying the exact confidence math that keeps LLM-only verification from
+    reaching `VERIFIED`), plus a genuine end-to-end run against the real local Ollama server
+    (`qwen2.5-coder:7b`) and a real `BanditScanner` finding — skipped when no local Ollama server
+    is reachable, mirroring `OllamaAdapter`'s own `TestLiveOllama` pattern.
 - **Phase 3.5 (in progress) — Evaluation harness.**
   - New workspace package `cortexward-eval`, depending on `cortexward-core`.
   - **`RunManifest`** (`cortexward.eval.manifest`): the immutable per-run provenance record

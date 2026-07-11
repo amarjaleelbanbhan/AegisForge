@@ -195,9 +195,22 @@ cost-aware model router.
   (deterministic, no network — none is live-verified in this environment, unlike `OllamaAdapter`).
   `load_llm_config()` reads a `provider`/`model`/`api_key(_env)`/`base_url` YAML file, so switching
   providers is a configuration change only. 100%-covered.
-- ⏳ A LangGraph-backed orchestrator adapter and the seven agents themselves (Planner, Scanner,
-  Verifier, Repair, Reviewer, Coordinator, Memory), built on the `cortexward-agents` foundation
-  above and now genuinely testable end-to-end against the local Ollama backend.
+- ✅ **The seven agents and `AgentOrchestrator`**, built on the `cortexward-agents` foundation
+  above: `PlannerAgent` (renders a run plan), `ScannerAgent` (runs configured `ScannerPort`s and
+  correlates), `VerifierAgent` (LLM verdict → `LLM_ASSESSMENT` `Evidence` → `apply_assessment`;
+  structurally can never singlehandedly reach `VERIFIED` — the domain's LLM-insufficiency policy
+  caps LLM-only confidence below `VERIFIED_THRESHOLD`), `RepairAgent` (verified finding → candidate
+  `Patch`, parsed from a `DESCRIPTION:`/`DIFF:` response), `ReviewerAgent` (advisory
+  APPROVE/REJECT/NEEDS_CHANGES verdict recorded as a run note only — it never sets a `Patch` gate
+  field, since an LLM opinion can't honestly stand in for the three-gate validation MPS §16
+  requires), `MemoryAgent` (dismisses findings matching a known suppression, persists newly
+  refuted findings as new ones), and `CoordinatorAgent` (final run summary). `AgentOrchestrator`
+  implements `OrchestratorPort` by running a fixed `Agent` sequence over one `RunState`, the same
+  drop-in contract `SequentialOrchestrator` satisfies; `default_agents()` assembles the standard
+  seven-agent pipeline. 100%-covered with deterministic scripted-LLM unit tests, plus a genuine
+  end-to-end run against the real local Ollama server (`qwen2.5-coder:7b`) and a real
+  `BanditScanner` finding — skipped when no local Ollama server is reachable, mirroring
+  `OllamaAdapter`'s own `TestLiveOllama` pattern.
 
 ## Phase 5 — Threat & architecture reasoning ⏳
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis
