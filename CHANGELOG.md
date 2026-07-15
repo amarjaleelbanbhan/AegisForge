@@ -30,6 +30,24 @@ All notable changes to CortexWard are documented here. The format is based on
     still runs bandit directly rather than `ward scan`.
   - 100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/`SecretsScanner`
     runs against fixtures (no mocking) and explicit tests for the `main()`/`__main__` entry points.
+  - **`ward scan --llm-provider`**: opts into `cortexward.agents.AgentOrchestrator` instead of
+    `SequentialOrchestrator`, so findings carry real LLM verification and control-flow-
+    reachability evidence rather than just raw scanner output. `--llm-provider`/`--llm-model`/
+    `--llm-api-key`/`--llm-api-key-env`/`--llm-base-url` configure a provider directly (mirroring
+    `LLMProviderConfig`'s fields); `--llm-config <path>` loads the same thing from a YAML file via
+    the already-existing `cortexward.llm.load_llm_config`, and is mutually exclusive with
+    `--llm-provider` (`typer.BadParameter` if both are given). `--reachability`/`--no-reachability`
+    controls whether `build_code_graphs()` runs. With no LLM flags given, `scan`'s behavior is
+    unchanged byte-for-byte from before this — the agent pipeline is opt-in, never a silent
+    default, since it needs a real LLM backend to be worth the added latency/cost. New
+    `cortexward-cli` dependencies: `cortexward-agents`, `cortexward-llm`. `SarifReporter`'s
+    `properties.state` field reflects the richer verification outcome the agent pipeline produces;
+    the full evidence list isn't serialized into SARIF yet (documented as deferred, not silently
+    dropped — see `SarifReporter`'s own module docstring). 100%-covered: deterministic tests for
+    every validation-error path (missing model, invalid provider, config+provider both given,
+    missing/malformed config file) plus a genuine end-to-end CLI invocation against a real local
+    Ollama server and a real Bandit finding — skipped when no local Ollama server is reachable,
+    matching the same `TestLiveOllama`-style pattern used throughout this codebase.
 - **Phase 4 (in progress) — Agent framework: LLM abstraction.**
   - New workspace package `cortexward-llm`, depending on `cortexward-core`.
   - **`OllamaAdapter`** (`cortexward.llm.ollama_adapter.OllamaAdapter`): implements `LLMPort`

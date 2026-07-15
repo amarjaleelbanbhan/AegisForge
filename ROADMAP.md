@@ -260,6 +260,18 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   mechanism would need to mark accepted — the dogfood job still runs bandit directly until that
   exists. 100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/
   `SecretsScanner` runs against fixtures (no mocking).
+  - ✅ **`ward scan --llm-provider`** opts into the agent-driven pipeline
+    (`cortexward.agents.AgentOrchestrator`) instead of `SequentialOrchestrator`, so findings carry
+    real LLM verification and control-flow-reachability evidence rather than just raw scanner
+    output — `--llm-provider`/`--llm-model`/`--llm-api-key(-env)`/`--llm-base-url` for a quick
+    provider setup, or `--llm-config <yaml>` (reusing `cortexward.llm.load_llm_config`) for the
+    full config-file path; `--no-reachability` opts out of the `build_code_graphs()` step. With no
+    LLM flags given, behavior is byte-for-byte identical to before this — the agent pipeline is
+    opt-in, never a silent default. SARIF's `properties.state` reflects the richer verification
+    outcome (`candidate`/`triaged`/`refuted`/...); the underlying evidence list itself isn't
+    (yet) serialized into SARIF — `SarifReporter`'s own docs note that's deliberately deferred to
+    a future CortexWard-native export format. 100%-covered, including a genuine end-to-end CLI
+    invocation against the real local Ollama server — skipped when none is reachable.
 - ⏳ REST API (FastAPI), GitHub App / Action, and a VS Code extension.
 
 ## Phase 9 — Benchmarks & evaluation ⏳

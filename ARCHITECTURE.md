@@ -309,7 +309,14 @@ FILE`, `--language` filtering, `--fail-on` controlling the exit code). It is **n
 (the detect-secrets adapter's own deliberately-fake secret literals, and the literal word
 "secret" in `detect-secrets = "..."` entry-point declarations) that a findings-suppression/
 baseline mechanism would need to mark accepted — without one, the dogfood job would fail on every
-push for reasons that aren't real vulnerabilities. The REST API, GitHub App/Action, and VS Code
+push for reasons that aren't real vulnerabilities.
+
+`ward scan --llm-provider <name> --llm-model <model>` (or `--llm-config <yaml>`) swaps in
+`AgentOrchestrator` for `SequentialOrchestrator`, so findings carry real LLM verification and
+reachability evidence instead of raw scanner output — with no LLM flags given, behavior is
+unchanged. `--reachability`/`--no-reachability` toggles the `build_code_graphs()` step. This is
+the first delivery-surface wiring for the whole agent framework built in §4.4; previously
+`AgentOrchestrator` was reachable only from tests. The REST API, GitHub App/Action, and VS Code
 extension are the rest of Phase 8.
 
 ## 5. Cross-cutting concerns
