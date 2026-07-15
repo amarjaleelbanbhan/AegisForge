@@ -234,3 +234,15 @@ class InMemoryCodeGraph:
     def location_of(self, node: NodeId) -> SourceLocation:
         self._require(node)
         return self._nodes[node].location
+
+    def nodes_at(self, path: str, line: int) -> Sequence[NodeId]:
+        matches: list[tuple[int, NodeId]] = []
+        for node_id, node in self._nodes.items():
+            location = node.location
+            if location.path != path:
+                continue
+            end_line = location.end_line if location.end_line is not None else location.start_line
+            if location.start_line <= line <= end_line:
+                matches.append((end_line - location.start_line, node_id))
+        matches.sort(key=lambda item: item[0])
+        return tuple(node_id for _, node_id in matches)

@@ -80,3 +80,15 @@ class CodeGraph(Protocol):
     def location_of(self, node: NodeId) -> SourceLocation:
         """The source location a graph node corresponds to."""
         ...
+
+    def nodes_at(self, path: str, line: int) -> Sequence[NodeId]:
+        """Nodes at ``path`` whose source span contains ``line``.
+
+        The reverse of :meth:`location_of`: resolves a scanner-reported
+        finding location back to graph nodes, for reachability/taint
+        analysis grounded on that finding. Multiple nodes' spans commonly
+        overlap the same line (a call nested inside a function nested
+        inside a module); results are ordered most-specific (smallest
+        span) first, so ``nodes_at(...)[0]`` is a reasonable default pick.
+        """
+        ...

@@ -53,6 +53,9 @@ class _FakeGraph:
     def location_of(self, node: NodeId) -> SourceLocation:
         return SourceLocation(path="app/db.py", start_line=1)
 
+    def nodes_at(self, path: str, line: int) -> Sequence[NodeId]:
+        return ("call:execute",) if path == "app/db.py" and line == 1 else ()
+
 
 def test_fake_graph_satisfies_protocol() -> None:
     assert isinstance(_FakeGraph(), CodeGraph)
@@ -77,3 +80,9 @@ def test_reachable_and_location() -> None:
     assert graph.reachable(sources=graph.entrypoints(), sink="call:execute")
     loc = graph.location_of("call:execute")
     assert loc.path == "app/db.py"
+
+
+def test_nodes_at_resolves_a_location_back_to_a_node() -> None:
+    graph = _FakeGraph()
+    assert graph.nodes_at("app/db.py", 1) == ("call:execute",)
+    assert graph.nodes_at("app/db.py", 2) == ()

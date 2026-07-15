@@ -170,6 +170,55 @@ class TestLocationOf:
             sql_injection_graph.location_of("fn:does-not-exist")
 
 
+class TestNodesAt:
+    def test_finds_the_node_at_an_exact_matching_line(self, make_location: MakeLocation) -> None:
+        builder = GraphBuilder(language="python")
+        builder.add_node("call:x", NodeKind.CALL, make_location(line=5, path="app.py"))
+        graph = builder.build()
+        assert graph.nodes_at("app.py", 5) == ("call:x",)
+
+    def test_no_node_on_that_line_returns_empty(self, make_location: MakeLocation) -> None:
+        builder = GraphBuilder(language="python")
+        builder.add_node("call:x", NodeKind.CALL, make_location(line=5, path="app.py"))
+        graph = builder.build()
+        assert graph.nodes_at("app.py", 99) == ()
+
+    def test_wrong_path_returns_empty(self, make_location: MakeLocation) -> None:
+        builder = GraphBuilder(language="python")
+        builder.add_node("call:x", NodeKind.CALL, make_location(line=5, path="app.py"))
+        graph = builder.build()
+        assert graph.nodes_at("other.py", 5) == ()
+
+    def test_a_multi_line_span_matches_every_contained_line(self) -> None:
+        builder = GraphBuilder(language="python")
+        builder.add_node(
+            "fn:handler",
+            NodeKind.FUNCTION,
+            SourceLocation(path="app.py", start_line=10, end_line=20),
+        )
+        graph = builder.build()
+        assert graph.nodes_at("app.py", 15) == ("fn:handler",)
+        assert graph.nodes_at("app.py", 10) == ("fn:handler",)
+        assert graph.nodes_at("app.py", 20) == ("fn:handler",)
+        assert graph.nodes_at("app.py", 21) == ()
+
+    def test_overlapping_spans_are_ordered_most_specific_first(self) -> None:
+        builder = GraphBuilder(language="python")
+        builder.add_node(
+            "module", NodeKind.MODULE, SourceLocation(path="app.py", start_line=1, end_line=50)
+        )
+        builder.add_node(
+            "fn:handler",
+            NodeKind.FUNCTION,
+            SourceLocation(path="app.py", start_line=10, end_line=20),
+        )
+        builder.add_node(
+            "call:inner", NodeKind.CALL, SourceLocation(path="app.py", start_line=15, end_line=15)
+        )
+        graph = builder.build()
+        assert graph.nodes_at("app.py", 15) == ("call:inner", "fn:handler", "module")
+
+
 class TestEntrypoints:
     def test_returns_marked_entrypoints(self, sql_injection_graph: InMemoryCodeGraph) -> None:
         assert sql_injection_graph.entrypoints() == ("fn:handler",)

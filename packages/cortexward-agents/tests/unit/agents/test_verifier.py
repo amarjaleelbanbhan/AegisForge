@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,14 @@ from cortexward.domain import (
     SourceLocation,
     VerificationRung,
 )
-from cortexward.ports import AnalysisRequest, CompletionRequest, CompletionResult, TokenUsage
+from cortexward.ports import (
+    AnalysisRequest,
+    CompletionRequest,
+    CompletionResult,
+    NodeId,
+    TaintPath,
+    TokenUsage,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -72,6 +80,46 @@ def _finding(
         evidence=evidence,
         provenance=Provenance(producer="test"),
     )
+
+
+class _FakeCodeGraph:
+    """A `CodeGraph` whose `reachable()`/`nodes_at()`/`entrypoints()` are scripted."""
+
+    language = "python"
+
+    def __init__(
+        self,
+        *,
+        entrypoints: Sequence[NodeId] = (),
+        nodes_by_location: Mapping[tuple[str, int], Sequence[NodeId]] | None = None,
+        reachable_sinks: Sequence[NodeId] = (),
+    ) -> None:
+        self._entrypoints = tuple(entrypoints)
+        self._nodes_by_location = dict(nodes_by_location or {})
+        self._reachable_sinks = set(reachable_sinks)
+
+    def entrypoints(self) -> Sequence[NodeId]:
+        return self._entrypoints
+
+    def reachable(self, sources: Sequence[NodeId], sink: NodeId) -> bool:
+        return sink in self._reachable_sinks
+
+    def taint(
+        self, sources: Sequence[NodeId], sinks: Sequence[NodeId], sanitizers: Sequence[NodeId] = ()
+    ) -> Sequence[TaintPath]:
+        return ()
+
+    def callers(self, function: NodeId) -> Sequence[NodeId]:
+        return ()
+
+    def slice(self, node: NodeId) -> Sequence[NodeId]:
+        return ()
+
+    def location_of(self, node: NodeId) -> SourceLocation:
+        raise KeyError(node)
+
+    def nodes_at(self, path: str, line: int) -> Sequence[NodeId]:
+        return self._nodes_by_location.get((path, line), ())
 
 
 class TestVerifierAgent:
@@ -208,3 +256,117 @@ class TestVerifierAgent:
         state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((_finding(),))
         result = agent.run(state)
         assert result.findings[0].evidence[0].supports is True
+
+
+class TestReachabilityEvidence:
+    def test_reachable_finding_gets_reachability_proof_evidence(self, tmp_path: Path) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("fn:main",),
+            nodes_by_location={("app.py", 3): ("call:vulnerable",)},
+            reachable_sinks=("call:vulnerable",),
+        )
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((_finding(),))
+        result = agent.run(state)
+        finding = result.findings[0]
+        assert len(finding.evidence) == 1
+        evidence = finding.evidence[0]
+        assert evidence.kind == EvidenceKind.REACHABILITY_PROOF
+        assert evidence.rung == VerificationRung.STATIC_REACHABILITY
+        assert evidence.supports is True
+
+    def test_reachability_evidence_alone_reaches_triaged(self, tmp_path: Path) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("fn:main",),
+            nodes_by_location={("app.py", 3): ("call:vulnerable",)},
+            reachable_sinks=("call:vulnerable",),
+        )
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((_finding(),))
+        result = agent.run(state)
+        assert result.findings[0].state == FindingState.TRIAGED
+
+    def test_reachability_combined_with_llm_verdict_still_short_of_verified(
+        self, tmp_path: Path
+    ) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("fn:main",),
+            nodes_by_location={("app.py", 3): ("call:vulnerable",)},
+            reachable_sinks=("call:vulnerable",),
+        )
+        llm = _ScriptedLLM(["VERDICT: REAL - matches known SQLi pattern"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((_finding(),))
+        result = agent.run(state)
+        finding = result.findings[0]
+        assert len(finding.evidence) == 2
+        assert {e.kind for e in finding.evidence} == {
+            EvidenceKind.REACHABILITY_PROOF,
+            EvidenceKind.LLM_ASSESSMENT,
+        }
+        assert finding.state == FindingState.TRIAGED
+
+    def test_no_known_entrypoints_attaches_no_reachability_evidence(self, tmp_path: Path) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=(),
+            nodes_by_location={("app.py", 3): ("call:vulnerable",)},
+            reachable_sinks=("call:vulnerable",),
+        )
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        original = _finding()
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((original,))
+        result = agent.run(state)
+        # Empty entrypoints is "we don't know", not "proven unreachable" --
+        # no evidence should be fabricated either way.
+        assert result.findings[0] == original
+
+    def test_unresolvable_location_attaches_no_reachability_evidence(self, tmp_path: Path) -> None:
+        graph = _FakeCodeGraph(entrypoints=("fn:main",), nodes_by_location={}, reachable_sinks=())
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        original = _finding()
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((original,))
+        result = agent.run(state)
+        assert result.findings[0] == original
+
+    def test_unreachable_node_attaches_no_refuting_evidence(self, tmp_path: Path) -> None:
+        # The node resolves and entrypoints exist, but the graph says the
+        # sink isn't reachable from them -- this must NOT be treated as a
+        # refutation, only as "no positive proof available."
+        graph = _FakeCodeGraph(
+            entrypoints=("fn:main",),
+            nodes_by_location={("app.py", 3): ("call:vulnerable",)},
+            reachable_sinks=(),
+        )
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        original = _finding()
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((original,))
+        result = agent.run(state)
+        assert result.findings[0] == original
+
+    def test_no_code_graphs_at_all_is_the_default_and_attaches_no_evidence(
+        self, tmp_path: Path
+    ) -> None:
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm)
+        original = _finding()
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((original,))
+        result = agent.run(state)
+        assert result.findings[0] == original
+
+    def test_missing_location_finding_is_skipped_for_reachability(self, tmp_path: Path) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("fn:main",),
+            nodes_by_location={("app.py", 3): ("call:vulnerable",)},
+            reachable_sinks=("call:vulnerable",),
+        )
+        llm = _ScriptedLLM(["VERDICT: UNCERTAIN - no independent info"])
+        agent = VerifierAgent(llm=llm, code_graphs={"python": graph})
+        original = _finding(with_location=False)
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_findings((original,))
+        result = agent.run(state)
+        assert result.findings[0] == original

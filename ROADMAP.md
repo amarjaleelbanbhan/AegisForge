@@ -211,6 +211,28 @@ cost-aware model router.
   end-to-end run against the real local Ollama server (`qwen2.5-coder:7b`) and a real
   `BanditScanner` finding — skipped when no local Ollama server is reachable, mirroring
   `OllamaAdapter`'s own `TestLiveOllama` pattern.
+- ✅ **`VerifierAgent` reachability evidence** — the first non-LLM evidence this framework
+  produces. `CodeGraph` (MPS §12/§17.1) gained a `nodes_at(path, line) -> Sequence[NodeId]` method
+  (implemented in `InMemoryCodeGraph`, reference-counted from smallest span to largest), the
+  reverse of `location_of`, resolving a scanner-reported finding location back to graph nodes.
+  `build_code_graphs()` (`cortexward.agents.code_graphs`) auto-discovers registered
+  `LanguageProvider`s the same way `default_scanners()` discovers scanners, parses the target
+  root once per run, and tolerates a broken/unsupported language without aborting the others.
+  `VerifierAgent` checks every node a finding's location resolves to (not just the most specific
+  one — verified empirically that the reference CFG builder only links CFG_NEXT edges between
+  sibling statement nodes, so an inner call/expression node commonly isn't itself part of that
+  chain even though a sibling statement node at the identical span is) and attaches a
+  `REACHABILITY_PROOF` `Evidence` only on a genuine positive proof — a finding whose location
+  isn't provably reachable is left alone, never treated as refuted, since the entrypoint heuristic
+  (`main()` / `if __name__ == "__main__":` guards only) is deliberately narrow and "not proven
+  reachable" is not the same claim as "proven unreachable." On its own this evidence is enough to
+  raise a finding to `TRIAGED`; combined with a supporting LLM verdict it still falls short of
+  `VERIFIED_THRESHOLD` — reaching `VERIFIED` needs taint/PoC/differential-test evidence this v1
+  framework doesn't produce yet. 100%-covered; the live end-to-end Ollama test now asserts genuine
+  `REACHABILITY_PROOF` evidence on a real Bandit finding whose vulnerable call sits directly in an
+  `if __name__ == "__main__":` guard (a helper-function-wrapped call was tried first and found
+  provably unreachable with the current CFG builder — documented in the test itself, not silently
+  worked around).
 
 ## Phase 5 — Threat & architecture reasoning ⏳
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis

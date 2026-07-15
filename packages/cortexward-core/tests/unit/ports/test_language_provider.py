@@ -39,6 +39,9 @@ class _EmptyGraph:
     def location_of(self, node: NodeId) -> SourceLocation:
         return SourceLocation(path="unknown", start_line=1)
 
+    def nodes_at(self, path: str, line: int) -> Sequence[NodeId]:
+        return ()
+
 
 class _FakePythonProvider:
     language = "python"

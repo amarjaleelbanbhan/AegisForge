@@ -131,6 +131,27 @@ All notable changes to CortexWard are documented here. The format is based on
     reaching `VERIFIED`), plus a genuine end-to-end run against the real local Ollama server
     (`qwen2.5-coder:7b`) and a real `BanditScanner` finding — skipped when no local Ollama server
     is reachable, mirroring `OllamaAdapter`'s own `TestLiveOllama` pattern.
+  - **`VerifierAgent` reachability evidence** — the first evidence this framework produces that
+    isn't LLM judgement. `CodeGraph` (`cortexward.ports.code_graph`) gained `nodes_at(path, line)
+    -> Sequence[NodeId]`, the reverse of `location_of`, implemented in `InMemoryCodeGraph`
+    (`cortexward-cpg`) as an ordered-by-span-size scan over every node at that location.
+    `build_code_graphs()` (`cortexward.agents.code_graphs`) auto-discovers registered
+    `LanguageProvider`s exactly the way `default_scanners()` discovers scanners, parsing the
+    target root once per run; a broken/unsupported language is skipped, not fatal to the others.
+    `VerifierAgent` now checks *every* node a finding's location resolves to, not just the most
+    specific one — empirically verified (not assumed) that the reference CFG builder only links
+    `CFG_NEXT` edges between sibling statement nodes, so an inner call/expression node commonly
+    isn't itself part of that chain even though a sibling statement node at the identical source
+    span is; picking only the smallest-span node silently produced false negatives before this
+    fix. A `REACHABILITY_PROOF` `Evidence` is attached only on a genuine positive proof — a
+    finding whose location isn't provably reachable is left alone, never treated as refuted,
+    since the entrypoint heuristic (`main()` / `if __name__ == "__main__":` guards only) is
+    deliberately narrow and "not proven reachable by this heuristic" is not the same claim as
+    "proven unreachable." 100%-covered; the live end-to-end Ollama test was updated to assert
+    genuine `REACHABILITY_PROOF` evidence on a real Bandit finding — its vulnerable call now sits
+    directly in an `if __name__ == "__main__":` guard after a helper-function-wrapped version was
+    tried first and found provably unreachable with the current CFG builder (a real, documented
+    limitation of the Phase 2 reference implementation, not a bug introduced here).
 - **Phase 3.5 (in progress) — Evaluation harness.**
   - New workspace package `cortexward-eval`, depending on `cortexward-core`.
   - **`RunManifest`** (`cortexward.eval.manifest`): the immutable per-run provenance record

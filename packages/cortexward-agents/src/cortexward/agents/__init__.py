@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from cortexward.agents.code_graphs import build_code_graphs
 from cortexward.agents.coordinator import CoordinatorAgent
 from cortexward.agents.memory import (
     GlobalKnowledge,
@@ -52,6 +53,7 @@ __all__ = [
     "ToolExecutionError",
     "ToolFunction",
     "VerifierAgent",
+    "build_code_graphs",
     "default_agents",
     "fingerprint_for",
     "load_prompt",

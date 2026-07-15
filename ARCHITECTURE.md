@@ -266,10 +266,19 @@ move a finding to `VERIFIED` on its own. `ReviewerAgent` mirrors the same discip
 its advisory verdict is a `RunState` note, never a `Patch` gate field. `default_agents()`
 assembles the standard Planner → Scanner → Verifier → Repair → Reviewer → Memory → Coordinator
 pipeline; a genuine end-to-end run against a real local Ollama server and a real `BanditScanner`
-finding backs the unit-test suite. Still open for Phase 4: a LangGraph-backed `OrchestratorPort`
-adapter (`AgentOrchestrator`'s single fixed pass is the reference implementation, not the only one
-MPS §13 anticipates), and independent verification evidence (reachability/taint/PoC) beyond LLM
-assessment — needed for any finding to actually reach `VERIFIED`.
+finding backs the unit-test suite.
+
+`VerifierAgent` also attaches the framework's first non-LLM evidence: `CodeGraph` gained
+`nodes_at(path, line)` (the reverse of `location_of`), and `build_code_graphs()` auto-discovers
+`LanguageProvider`s the way `default_scanners()` discovers scanners. A `REACHABILITY_PROOF`
+`Evidence` is attached only on a genuine positive proof from the graph — a finding that isn't
+provably reachable is left alone, never treated as refuted, since the entrypoint heuristic
+(`main()`/`if __name__ == "__main__":` guards only) is deliberately narrow. This alone can raise a
+finding to `TRIAGED`, not `VERIFIED` — reaching that rung needs taint/PoC/differential-test
+evidence this framework doesn't produce yet. Still open for Phase 4: a LangGraph-backed
+`OrchestratorPort` adapter (`AgentOrchestrator`'s single fixed pass is the reference
+implementation, not the only one MPS §13 anticipates), and the taint/PoC/differential-test
+evidence needed to actually reach `VERIFIED`.
 
 ### 4.5 Verification & sandbox (Phase 6) — *planned*
 
