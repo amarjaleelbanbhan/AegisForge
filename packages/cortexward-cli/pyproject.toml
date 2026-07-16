@@ -1,10 +1,11 @@
 # cortexward-cli — the `ward` command-line interface (MPS §8, Phase 8).
-# Depends on cortexward-orchestrator (SequentialOrchestrator + scanner
-# auto-discovery) and cortexward-reporters (SARIF export) to wire the
-# already-built scan pipeline into an actual runnable tool. Also depends on
-# cortexward-agents (AgentOrchestrator) and cortexward-llm (build_llm) for
-# the opt-in agent-driven verification pipeline `ward scan --llm-provider`
-# enables.
+# Depends on cortexward-orchestrator (build_pipeline() picks between
+# SequentialOrchestrator and the agent-driven pipeline) and
+# cortexward-reporters (SARIF/JSON export) to wire the already-built scan
+# pipeline into an actual runnable tool. Also depends on cortexward-llm
+# directly for LLMProviderConfig/load_llm_config, to turn `--llm-*` CLI
+# flags into the config build_pipeline() takes — no direct dependency on
+# cortexward-agents; the CLI only knows about OrchestratorPort.
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
@@ -30,7 +31,6 @@ classifiers = [
 ]
 
 dependencies = [
-  "cortexward-agents",
   "cortexward-core",
   "cortexward-llm",
   "cortexward-orchestrator",
@@ -46,7 +46,6 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 ward = "cortexward.cli.main:main"
 
 [tool.uv.sources]
-cortexward-agents = { workspace = true }
 cortexward-core = { workspace = true }
 cortexward-llm = { workspace = true }
 cortexward-orchestrator = { workspace = true }

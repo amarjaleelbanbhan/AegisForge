@@ -30,13 +30,12 @@ from typing import Annotated, cast
 
 import typer
 
-from cortexward.agents import AgentOrchestrator, build_code_graphs, default_agents
 from cortexward.domain import Severity
-from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, build_llm, load_llm_config
-from cortexward.orchestrator import SequentialOrchestrator, default_scanners
+from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, load_llm_config
+from cortexward.orchestrator import build_pipeline
 from cortexward.plugins.groups import PluginGroup
 from cortexward.plugins.registry import PluginNotFoundError, registry_for
-from cortexward.ports import AnalysisRequest, OrchestratorPort, ReporterPort
+from cortexward.ports import AnalysisRequest, ReporterPort
 
 app = typer.Typer(
     name="ward",
@@ -120,22 +119,6 @@ def _resolve_reporter(format_id: str) -> ReporterPort:
         return cast("ReporterPort", registry_for(PluginGroup.REPORTERS).create(format_id))
     except PluginNotFoundError as exc:
         raise typer.BadParameter(str(exc)) from exc
-
-
-def _build_orchestrator(
-    *,
-    llm_config: LLMProviderConfig | None,
-    root: Path,
-    languages: tuple[str, ...],
-    reachability: bool,
-) -> OrchestratorPort:
-    scanners = default_scanners()
-    if llm_config is None:
-        return SequentialOrchestrator(scanners=scanners)
-    llm = build_llm(llm_config)
-    code_graphs = build_code_graphs(root, languages=languages) if reachability else None
-    agents = default_agents(llm=llm, scanners=scanners, code_graphs=code_graphs)
-    return AgentOrchestrator(agents)
 
 
 @app.command()
@@ -228,7 +211,7 @@ def scan(
     )
 
     resolved_root = path.resolve()
-    orchestrator = _build_orchestrator(
+    orchestrator = build_pipeline(
         llm_config=resolved_llm_config,
         root=resolved_root,
         languages=tuple(language),

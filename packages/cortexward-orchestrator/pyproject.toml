@@ -2,7 +2,10 @@
 # ADR-0002). Unlike the other adapter packages (cpg, scanners, reporters,
 # eval, llm), the orchestrator's whole job is to coordinate *other*
 # adapters, so it legitimately depends on cortexward-scanners — it sits
-# above the peer-adapter layer, not beside it.
+# above the peer-adapter layer, not beside it. Also depends on
+# cortexward-agents and cortexward-llm for build_pipeline(), which picks
+# between SequentialOrchestrator and the agent-driven AgentOrchestrator —
+# a decision every delivery surface needs to make the same way.
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
@@ -27,7 +30,9 @@ classifiers = [
 ]
 
 dependencies = [
+  "cortexward-agents",
   "cortexward-core",
+  "cortexward-llm",
   "cortexward-scanners",
 ]
 
@@ -36,7 +41,9 @@ Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
 Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 
 [tool.uv.sources]
+cortexward-agents = { workspace = true }
 cortexward-core = { workspace = true }
+cortexward-llm = { workspace = true }
 cortexward-scanners = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

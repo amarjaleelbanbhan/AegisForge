@@ -220,7 +220,6 @@ name = "cortexward-cli"
 version = "0.1.0.dev0"
 source = { editable = "packages/cortexward-cli" }
 dependencies = [
-    { name = "cortexward-agents" },
     { name = "cortexward-core" },
     { name = "cortexward-llm" },
     { name = "cortexward-orchestrator" },
@@ -230,7 +229,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cortexward-agents", editable = "packages/cortexward-agents" },
     { name = "cortexward-core", editable = "packages/cortexward-core" },
     { name = "cortexward-llm", editable = "packages/cortexward-llm" },
     { name = "cortexward-orchestrator", editable = "packages/cortexward-orchestrator" },
@@ -303,13 +301,17 @@ name = "cortexward-orchestrator"
 version = "0.1.0.dev0"
 source = { editable = "packages/cortexward-orchestrator" }
 dependencies = [
+    { name = "cortexward-agents" },
     { name = "cortexward-core" },
+    { name = "cortexward-llm" },
     { name = "cortexward-scanners" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "cortexward-agents", editable = "packages/cortexward-agents" },
     { name = "cortexward-core", editable = "packages/cortexward-core" },
+    { name = "cortexward-llm", editable = "packages/cortexward-llm" },
     { name = "cortexward-scanners", editable = "packages/cortexward-scanners" },
 ]
 

@@ -54,6 +54,16 @@ All notable changes to CortexWard are documented here. The format is based on
     `cortexward-json` (see the `cortexward-reporters` entry below), and any future reporter is
     selectable with zero CLI code changes. An unknown `--format` value raises `typer.BadParameter`
     via the registry's own `PluginNotFoundError`, listing what's actually registered. 100%-covered.
+  - **`build_pipeline()`** (`cortexward.orchestrator.pipeline`, new module): extracted from what
+    was `ward scan`'s own private `_build_orchestrator()` helper, since the REST API (this
+    phase's next surface) needs to make the identical "`SequentialOrchestrator` or
+    `AgentOrchestrator`?" decision and shouldn't duplicate it. `cortexward-orchestrator` gains
+    `cortexward-agents`/`cortexward-llm` dependencies for this — a deliberate, anticipated move
+    (the package's own import-linter contract comment already noted "cpg/llm/reporters are
+    expected as agent-driven capabilities land"). `cortexward-cli` in turn **drops** its direct
+    `cortexward-agents` dependency: it now only knows about `OrchestratorPort` via
+    `build_pipeline()`, not the concrete agent-framework types. Pure refactor, zero behavior
+    change — every existing CLI test passes unmodified. 100%-covered.
 - **Phase 7 (in progress) — Patch generation: gate verification.** `RepairAgent`/`ReviewerAgent`
   already covered minimal-diff generation and advisory review (see Phase 4 below); this adds the
   gate verification MPS §16 requires before `Patch.is_validated`.

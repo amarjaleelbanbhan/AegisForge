@@ -250,14 +250,18 @@ router MPS §14 specifies: `TRIAGE`/`REASONING`/`PATCH_GENERATION` route to `CHE
 default, config-driven and overridable per run, with `offline=True` pinning every task class to
 the local tier.
 
-`cortexward-orchestrator` (depends on `cortexward-core` and `cortexward-scanners`) ships the first
-`OrchestratorPort` implementation: `SequentialOrchestrator` runs every configured `ScannerPort` in
-sequence, then correlates the results into `Finding`s via `cortexward.scanners.correlate` — no LLM
-or agent reasoning, just "run every scanner and merge the results." `default_scanners()`
-auto-discovers every scanner registered under `cortexward.scanners`, so a full scan → correlate →
-SARIF pipeline runs end to end with no hardcoded scanner list. Unlike its peer adapter packages
-(cpg, scanners, reporters, eval, llm), the orchestrator is deliberately *not* isolated from
-`cortexward.scanners` — coordinating other adapters is its whole job.
+`cortexward-orchestrator` (depends on `cortexward-core`, `cortexward-scanners`,
+`cortexward-agents`, and `cortexward-llm`) ships the first `OrchestratorPort` implementation:
+`SequentialOrchestrator` runs every configured `ScannerPort` in sequence, then correlates the
+results into `Finding`s via `cortexward.scanners.correlate` — no LLM or agent reasoning, just "run
+every scanner and merge the results." `default_scanners()` auto-discovers every scanner registered
+under `cortexward.scanners`, so a full scan → correlate → SARIF pipeline runs end to end with no
+hardcoded scanner list. Unlike its peer adapter packages (cpg, scanners, reporters, eval, llm), the
+orchestrator is deliberately *not* isolated from `cortexward.scanners` — coordinating other
+adapters is its whole job; `build_pipeline()` (`cortexward.orchestrator.pipeline`) extends that
+job to choosing *which* `OrchestratorPort` a request gets — `SequentialOrchestrator` with no LLM
+configured, `AgentOrchestrator` with one — so every delivery surface (CLI, REST API, ...) makes
+that decision the same, tested way instead of each reimplementing it.
 
 `cortexward-agents` (depends on `cortexward-core`, `cortexward-llm`, `cortexward-scanners`) ships
 the framework foundation — `RunState` (stateless functions over shared, typed state), the `Agent`
