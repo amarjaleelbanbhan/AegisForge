@@ -289,9 +289,7 @@ class TestBaselineOption:
         assert generate_result.exit_code == 0
 
         _write_vulnerable_file(target)
-        scan_result = runner.invoke(
-            app, ["scan", str(target), "--baseline", str(baseline_path)]
-        )
+        scan_result = runner.invoke(app, ["scan", str(target), "--baseline", str(baseline_path)])
         assert scan_result.exit_code == 1
 
     def test_nonexistent_baseline_path_is_rejected(self, tmp_path: Path) -> None:
