@@ -41,6 +41,15 @@ class RunState:
     def with_patches(self, patches: tuple[Patch, ...]) -> RunState:
         return replace(self, patches=(*self.patches, *patches))
 
+    def with_patches_updated(self, patches: tuple[Patch, ...]) -> RunState:
+        """Replaces the whole `patches` tuple, unlike `with_patches`' append.
+
+        For an agent (e.g. Reviewer) recording a gate verdict on patches
+        `Repair` already proposed this run — `patches` must be the full,
+        already-updated set, not new ones to add.
+        """
+        return replace(self, patches=patches)
+
     def with_note(self, agent_name: str, note: str) -> RunState:
         return replace(self, notes=(*self.notes, (agent_name, note)))
 

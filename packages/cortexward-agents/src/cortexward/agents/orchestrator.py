@@ -56,7 +56,9 @@ def default_agents(
     `cortexward.agents.code_graphs.build_code_graphs(root, languages=...)`
     once the target `root` is known (this function is request-independent,
     so it can't build that itself). Omit it to verify findings via the LLM
-    alone, exactly as if reachability analysis didn't exist.
+    alone, exactly as if reachability analysis didn't exist. The same
+    `scanners` also reaches `ReviewerAgent`, which uses them to genuinely
+    apply-and-rescan each proposed patch (MPS §16 Gates A/C).
     """
     memory = repository_memory if repository_memory is not None else InMemoryRepositoryMemory()
     return (
@@ -64,7 +66,7 @@ def default_agents(
         ScannerAgent(scanners=scanners),
         VerifierAgent(llm=llm, code_graphs=code_graphs),
         RepairAgent(llm=llm),
-        ReviewerAgent(llm=llm),
+        ReviewerAgent(llm=llm, scanners=scanners),
         MemoryAgent(repository_memory=memory),
         CoordinatorAgent(llm=llm),
     )

@@ -55,6 +55,11 @@ class TestRunState:
         state = state.with_patches((_patch("f2"),))
         assert [p.finding_id for p in state.patches] == ["f1", "f2"]
 
+    def test_with_patches_updated_replaces_not_appends(self, tmp_path: Path) -> None:
+        state = _state(tmp_path).with_patches((_patch("f1"), _patch("f2")))
+        state = state.with_patches_updated((_patch("f3"),))
+        assert [p.finding_id for p in state.patches] == ["f3"]
+
     def test_with_note_appends_and_is_attributed(self, tmp_path: Path) -> None:
         state = _state(tmp_path).with_note("planner", "note one")
         state = state.with_note("verifier", "note two")

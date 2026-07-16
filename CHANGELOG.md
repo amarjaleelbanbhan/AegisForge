@@ -54,6 +54,38 @@ All notable changes to CortexWard are documented here. The format is based on
     `cortexward-json` (see the `cortexward-reporters` entry below), and any future reporter is
     selectable with zero CLI code changes. An unknown `--format` value raises `typer.BadParameter`
     via the registry's own `PluginNotFoundError`, listing what's actually registered. 100%-covered.
+- **Phase 7 (in progress) — Patch generation: gate verification.** `RepairAgent`/`ReviewerAgent`
+  already covered minimal-diff generation and advisory review (see Phase 4 below); this adds the
+  gate verification MPS §16 requires before `Patch.is_validated`.
+  - **`apply_and_rescan()`** (`cortexward.agents.patch_gates`): Gates A ("applies cleanly") and C
+    ("rescan clean") — the two of the four gates that don't need sandboxed code execution.
+    Copies only the files a `Patch` touches into a scratch directory, applies the diff via
+    `git apply` (a trusted external tool, resolved through `shutil.which` rather than a bare
+    `"git"` argv entry — never the analyzed project's own code), and re-runs the same scanners
+    against the patched copy to check whether the original finding's `rule_id` still appears.
+    Only a genuine positive/negative rescan result ever sets `Patch.rescan_clean`; an
+    inconclusive outcome (patch didn't apply, referenced files missing, `git` unavailable) leaves
+    it untouched. The diff comes from an LLM (`RepairAgent`), treated as untrusted input per
+    ADR-0004's spirit: `Patch.files_changed` entries are validated against `..` traversal and
+    absolute/drive-letter paths with OS-independent string logic (deliberately not
+    `pathlib.Path.is_absolute()`, whose answer for a Windows drive-letter path depends on which
+    OS the check itself runs on) before anything is read from the real project root or written
+    to the scratch directory.
+  - **`RunState.with_patches_updated()`**: a replace-semantics counterpart to the existing
+    append-only `with_patches()`, needed so `ReviewerAgent` can record a gate verdict on the
+    patches `RepairAgent` already proposed this run rather than appending duplicates.
+  - **`ReviewerAgent`** now takes an optional `scanners` — when given (as `default_agents()`
+    does, reusing the same scanner list `ScannerAgent` uses), it calls `apply_and_rescan()` for
+    each patch before its existing advisory LLM review, which is unchanged: the LLM verdict is
+    still a `RunState` note only, never a `Patch` gate field, keeping the same LLM-insufficiency
+    discipline `VerifierAgent` already enforces for findings.
+  - `Patch.is_validated` still requires `tests_pass`/`rescan_clean`/`exploit_neutralized` all
+    truthy; Gates B ("existing tests pass") and D ("original PoC neutralized") need to execute
+    the analyzed project's own code, which needs Phase 6's `SandboxPort` and doesn't exist yet —
+    a patch can reach `rescan_clean = True` through this work and still correctly have
+    `is_validated = False` until then. 100%-covered using the real `git` binary and the real
+    `BanditScanner` (no mocking — this module's entire job is applying a real diff and
+    re-running a real scanner).
 - **Phase 4 (in progress) — Agent framework: LLM abstraction.**
   - New workspace package `cortexward-llm`, depending on `cortexward-core`.
   - **`OllamaAdapter`** (`cortexward.llm.ollama_adapter.OllamaAdapter`): implements `LLMPort`

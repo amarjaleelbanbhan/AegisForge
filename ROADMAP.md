@@ -250,9 +250,34 @@ grounded on the CPG.
 Sandbox (Docker → gVisor/Firecracker), the full ladder end to end, false-positive reduction,
 PoC artifacts, and VEX output.
 
-## Phase 7 — Patch generation ⏳
+## Phase 7 — Patch generation 🚧
 Minimal-diff automated repair with the three-gate validation (tests pass · rescan clean ·
 exploit neutralized) and regression prevention.
+- ✅ **`RepairAgent`/`ReviewerAgent`** (`cortexward-agents`, described under Phase 4 above) already
+  cover minimal-diff generation and an advisory review; this phase's remaining piece was the
+  **gate verification** MPS §16 requires before `Patch.is_validated`.
+- ✅ **Gates A ("applies cleanly") and C ("rescan clean")** — `apply_and_rescan()`
+  (`cortexward.agents.patch_gates`), wired into `ReviewerAgent` when `scanners` is given (as
+  `default_agents()` does). Copies only the files a `Patch` touches into a scratch directory,
+  applies the diff via `git apply` (a trusted external tool, never the analyzed project's own
+  code — ADR-0004 stays intact), and re-runs the same scanners against the patched copy to check
+  whether the original finding's `rule_id` still appears. Sets `Patch.rescan_clean` only on a
+  genuine positive/negative result; an inconclusive outcome (patch didn't apply, referenced files
+  missing, `git` unavailable) leaves it untouched rather than guessing. The diff comes from an
+  LLM, treated as untrusted input: `Patch.files_changed` entries are validated against path
+  traversal and absolute/drive-letter paths (checked with OS-independent string logic, not
+  `pathlib.is_absolute()`, which is itself platform-dependent) before anything is read from the
+  real project root or written to the scratch directory. `RunState` gained
+  `with_patches_updated()` (replace semantics, unlike the existing append-only `with_patches()`)
+  so Reviewer can record gate results on the patches Repair already proposed this run, not append
+  duplicates. 100%-covered using the real `git` binary and the real `BanditScanner` — no mocking,
+  since this module's entire job is applying a real diff and re-running a real scanner.
+- ⏳ **Gates B ("existing tests pass") and D ("original PoC neutralized")** — both need to execute
+  the analyzed project's own code (running its test suite, replaying a PoC), which needs Phase
+  6's `SandboxPort` and doesn't exist yet. `Patch.is_validated` requires all three of
+  `tests_pass`/`rescan_clean`/`exploit_neutralized` truthy, so a patch can reach `rescan_clean =
+  True` through this work and still correctly have `is_validated = False` until Phase 6 lands —
+  this is intentional, not a gap being hidden.
 
 ## Phase 8 — Delivery surfaces 🚧
 CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.

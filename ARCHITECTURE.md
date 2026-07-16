@@ -12,9 +12,10 @@ security, data/DB design, APIs, evaluation), read the MPS.
 
 > **Audience:** engineers extending CortexWard, and reviewers evaluating its design.
 > **Status:** living summary. Phases 0–2 are implemented; Phase 3 (scanners), Phase 3.5
-> (evaluation), Phase 4 (agents), and Phase 8 (delivery surfaces) each have real, shipped
-> subsystems alongside still-open pieces — see §4 below and [ROADMAP.md](ROADMAP.md) for the
-> per-phase breakdown. Unbuilt phases are specified as contracts in the MPS before they are built.
+> (evaluation), Phase 4 (agents), Phase 7 (repair-gate verification), and Phase 8 (delivery
+> surfaces) each have real, shipped subsystems alongside still-open pieces — see §4 below and
+> [ROADMAP.md](ROADMAP.md) for the per-phase breakdown. Unbuilt phases are specified as contracts
+> in the MPS before they are built.
 
 ---
 
@@ -291,12 +292,23 @@ hardware isolation. Deny-by-default egress, ephemeral environments, and **no bui
 during static analysis**. The sandbox realizes rungs 3–4 of the ladder and stores PoC
 artifacts referenced by `Evidence.artifact_ref`.
 
-### 4.6 Repair (Phase 7) — *planned*
+### 4.6 Repair (Phase 7) — *in progress*
 
-Minimal-diff patches, never auto-merged. Every patch passes three gates before it is offered:
-existing tests still pass, scanners re-run clean, and **the original PoC no longer succeeds
-against the patched code**. This closes the loop: the same evidence that proved the bug proves
-the fix.
+Minimal-diff patches, never auto-merged. Every patch passes four gates before it is offered:
+applies cleanly, existing tests still pass, scanners re-run clean, and **the original PoC no
+longer succeeds against the patched code**. This closes the loop: the same evidence that proved
+the bug proves the fix. `RepairAgent`/`ReviewerAgent` (§4.4) generate the diff and give an
+advisory LLM review; `cortexward.agents.patch_gates.apply_and_rescan()` is the genuine
+verification for the two gates that don't need sandboxed execution — it copies only the touched
+files into a scratch directory, applies the diff via `git apply` (a trusted external tool, never
+the analyzed project's own code), and re-runs the same scanners against the patched copy. The
+diff is LLM output, so it's treated as untrusted per ADR-0004: `Patch.files_changed` is validated
+against path traversal and absolute/drive-letter paths with OS-independent string logic before
+anything is read or written. Only a genuine result ever sets `Patch.rescan_clean`; an
+inconclusive one (didn't apply, `git` missing, ...) is left alone rather than guessed at. The
+remaining two gates — existing tests pass, PoC neutralized — need to execute the analyzed
+project's own code, which needs §4.5's sandbox and doesn't exist yet: `Patch.is_validated`
+correctly stays `False` until then, even for a patch that already passed both available gates.
 
 ### 4.7 Delivery surfaces (Phase 8) — *in progress*
 

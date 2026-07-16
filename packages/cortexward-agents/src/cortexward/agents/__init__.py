@@ -14,6 +14,7 @@ from cortexward.agents.memory import (
 )
 from cortexward.agents.memory_agent import MemoryAgent
 from cortexward.agents.orchestrator import AgentOrchestrator, default_agents
+from cortexward.agents.patch_gates import apply_and_rescan
 from cortexward.agents.planner import PlannerAgent
 from cortexward.agents.prompt_loader import (
     MissingPromptInputError,
@@ -53,6 +54,7 @@ __all__ = [
     "ToolExecutionError",
     "ToolFunction",
     "VerifierAgent",
+    "apply_and_rescan",
     "build_code_graphs",
     "default_agents",
     "fingerprint_for",

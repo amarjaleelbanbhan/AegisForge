@@ -9,6 +9,7 @@ import pytest
 from cortexward.agents import ReviewerAgent, RunState
 from cortexward.domain import Finding, Patch, Provenance, SourceLocation
 from cortexward.ports import AnalysisRequest, CompletionRequest, CompletionResult, TokenUsage
+from cortexward.scanners import BanditScanner
 
 pytestmark = pytest.mark.unit
 
@@ -51,6 +52,42 @@ def _patch(finding_id: str) -> Patch:
         finding_id=finding_id,
         diff="--- a/app.py\n+++ b/app.py\n",
         description="Use a parameterized query.",
+        provenance=Provenance(producer="repair"),
+    )
+
+
+_VULNERABLE_SOURCE = "import subprocess\n\n\ndef run(cmd):\n    subprocess.call(cmd, shell=True)\n"
+
+_FIXING_DIFF = (
+    "--- a/app.py\n"
+    "+++ b/app.py\n"
+    "@@ -1,5 +1,5 @@\n"
+    " import subprocess\n"
+    " \n"
+    " \n"
+    " def run(cmd):\n"
+    "-    subprocess.call(cmd, shell=True)\n"
+    "+    subprocess.call(cmd, shell=False)\n"
+)
+
+
+def _bandit_finding() -> Finding:
+    return Finding(
+        rule_id="B602",
+        title="bandit: B602",
+        message="shell=True is dangerous",
+        cwe=78,
+        locations=(SourceLocation(path="app.py", start_line=5),),
+        provenance=Provenance(producer="bandit"),
+    )
+
+
+def _fixing_patch(finding_id: str) -> Patch:
+    return Patch(
+        finding_id=finding_id,
+        diff=_FIXING_DIFF,
+        description="Disable shell=True.",
+        files_changed=("app.py",),
         provenance=Provenance(producer="repair"),
     )
 
@@ -180,3 +217,120 @@ class TestReviewerAgent:
         )
         result = agent.run(state)
         assert "APPROVE" in result.notes_from("reviewer")[0]
+
+
+class TestRescanGate:
+    """`scanners` given -> genuine apply-and-rescan, using the real BanditScanner + git."""
+
+    def test_a_fixing_patch_sets_rescan_clean_true(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        finding = _bandit_finding()
+        patch = _fixing_patch(finding.id)
+        llm = _ScriptedLLM(["REVIEW: APPROVE - looks correct"])
+        agent = ReviewerAgent(llm=llm, scanners=(BanditScanner(),))
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        assert result.patches[0].rescan_clean is True
+
+    def test_a_non_fixing_patch_sets_rescan_clean_false(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        finding = _bandit_finding()
+        # A diff that applies but leaves the vulnerable call untouched.
+        non_fixing_diff = (
+            "--- a/app.py\n+++ b/app.py\n@@ -1,5 +1,5 @@\n import subprocess\n \n \n"
+            "-def run(cmd):\n+def run(cmd):  # noop\n     subprocess.call(cmd, shell=True)\n"
+        )
+        patch = Patch(
+            finding_id=finding.id,
+            diff=non_fixing_diff,
+            description="noop",
+            files_changed=("app.py",),
+            provenance=Provenance(producer="repair"),
+        )
+        llm = _ScriptedLLM(["REVIEW: APPROVE - looks correct"])
+        agent = ReviewerAgent(llm=llm, scanners=(BanditScanner(),))
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        assert result.patches[0].rescan_clean is False
+
+    def test_an_unapplyable_patch_leaves_rescan_clean_none(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        finding = _bandit_finding()
+        patch = Patch(
+            finding_id=finding.id,
+            diff="--- a/app.py\n+++ b/app.py\n@@ -1,1 +1,1 @@\n-nonsense context\n+fixed\n",
+            description="bad diff",
+            files_changed=("app.py",),
+            provenance=Provenance(producer="repair"),
+        )
+        llm = _ScriptedLLM(["REVIEW: APPROVE - looks correct"])
+        agent = ReviewerAgent(llm=llm, scanners=(BanditScanner(),))
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        assert result.patches[0].rescan_clean is None
+
+    def test_no_scanners_given_leaves_rescan_clean_none(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        finding = _bandit_finding()
+        patch = _fixing_patch(finding.id)
+        llm = _ScriptedLLM(["REVIEW: APPROVE - looks correct"])
+        agent = ReviewerAgent(llm=llm)
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        assert result.patches[0].rescan_clean is None
+
+    def test_missing_finding_leaves_rescan_clean_none(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        patch = _fixing_patch("no-such-finding-id")
+        llm = _ScriptedLLM(["REVIEW: APPROVE - looks correct"])
+        agent = ReviewerAgent(llm=llm, scanners=(BanditScanner(),))
+        request = AnalysisRequest(root=tmp_path, languages=("python",))
+        state = RunState(request=request).with_patches((patch,))
+        result = agent.run(state)
+        assert result.patches[0].rescan_clean is None
+
+    def test_patches_are_updated_not_appended(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        finding = _bandit_finding()
+        patch = _fixing_patch(finding.id)
+        llm = _ScriptedLLM(["REVIEW: APPROVE - looks correct"])
+        agent = ReviewerAgent(llm=llm, scanners=(BanditScanner(),))
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        assert len(result.patches) == 1
+        assert result.patches[0].id == patch.id
+
+    def test_gate_result_does_not_affect_the_advisory_llm_note(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        finding = _bandit_finding()
+        patch = _fixing_patch(finding.id)
+        llm = _ScriptedLLM(["REVIEW: NEEDS_CHANGES - style nit"])
+        agent = ReviewerAgent(llm=llm, scanners=(BanditScanner(),))
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        assert result.patches[0].rescan_clean is True
+        assert result.notes_from("reviewer")[0].startswith(f"{patch.id}: NEEDS_CHANGES")
