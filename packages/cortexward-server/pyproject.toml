@@ -1,0 +1,51 @@
+# cortexward-server — the REST API (MPS §20.2, Phase 8). Depends on
+# cortexward-orchestrator (build_pipeline() picks between
+# SequentialOrchestrator and the agent-driven pipeline, the same decision
+# `ward scan` makes) and cortexward-llm directly for LLMProviderConfig, to
+# turn a scan request's JSON body into the config build_pipeline() takes.
+# Run with `uvicorn cortexward.server.app:app`.
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortexward-server"
+version = "0.1.0.dev0"
+description = "CortexWard's REST API (a v1 slice of MPS §20.2)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CortexWard Contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+  "Framework :: FastAPI",
+]
+
+dependencies = [
+  "cortexward-core",
+  "cortexward-llm",
+  "cortexward-orchestrator",
+  "fastapi>=0.110,<1",
+]
+
+[project.optional-dependencies]
+serve = ["uvicorn[standard]>=0.30,<1"]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
+Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[tool.uv.sources]
+cortexward-core = { workspace = true }
+cortexward-llm = { workspace = true }
+cortexward-orchestrator = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortexward"]

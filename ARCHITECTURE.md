@@ -339,7 +339,19 @@ the first delivery-surface wiring for the whole agent framework built in §4.4; 
 `AgentOrchestrator` was reachable only from tests. `--format` picks the `ReporterPort` to render
 via the plugin registry (`sarif` default, or `cortexward-json` to actually see the evidence the
 `--llm-provider` pipeline attaches — SARIF's `properties.state` reflects the outcome but not the
-evidence itself). The REST API, GitHub App/Action, and VS Code extension are the rest of Phase 8.
+evidence itself).
+
+`cortexward-server` (depends on `cortexward-orchestrator`, `cortexward-llm`, `fastapi`) ships a
+v1 slice of MPS §20.2's REST API: `POST /v1/scans` (202 Accepted), `GET /v1/scans/{id}` (poll
+status), `GET /v1/scans/{id}/findings` (the full `Finding` shape, not SARIF's narrowed one). The
+request body mirrors `ward scan`'s CLI flags and reuses the same `build_pipeline()`, so a scan
+behaves identically from either surface — this is the payoff of extracting that function rather
+than leaving it private to the CLI. Jobs run via FastAPI's `BackgroundTasks` against
+`JobStore` (`cortexward.server.jobs`) — thread-safe, in-memory, single-process; no persistence,
+since `StoragePort` has no adapter yet to persist into, and no auth/rate-limiting, since a
+single-tenant trust model is all this project has infrastructure for today. Both limitations are
+documented in the module docstring, not silently missing. The GitHub App/Action and VS Code
+extension are what's left of Phase 8.
 
 ## 5. Cross-cutting concerns
 

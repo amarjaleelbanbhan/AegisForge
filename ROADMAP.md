@@ -309,7 +309,21 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
     `--llm-provider` bullet above left open: SARIF's `properties.state` reflects the richer
     verification outcome, but the underlying evidence list needs `--format cortexward-json` to
     actually be visible. 100%-covered, including an unknown-format rejection test.
-- ⏳ REST API (FastAPI), GitHub App / Action, and a VS Code extension.
+- ✅ **`cortexward-server`** (new workspace package): a v1 slice of MPS §20.2's REST API contract.
+  `POST /v1/scans` (create a job, 202 Accepted), `GET /v1/scans/{id}` (poll status),
+  `GET /v1/scans/{id}/findings` (list results, the full `Finding` shape — evidence included,
+  unlike SARIF). Mirrors `ward scan`'s own flags in the request body and reuses
+  `cortexward.orchestrator.build_pipeline()`, so a scan behaves identically whether it's driven
+  from the CLI or the API. Jobs run via FastAPI's `BackgroundTasks` against an in-memory
+  `JobStore` — single-process, no persistence (`StoragePort` has no adapter yet to persist into).
+  **Deliberately not implemented**: authentication, rate-limiting, per-finding `verify`/`fix`
+  endpoints, `GET /v1/runs/{id}/manifest`, `POST /v1/webhooks/{provider}` — each needs
+  infrastructure (a persisted finding store, a `VCSPort` adapter, ...) that doesn't exist yet;
+  this is a single-tenant, trusted-caller tool today, not something to expose on an untrusted
+  network. 100%-covered via FastAPI's `TestClient` against the real app (real `BanditScanner`,
+  no mocking), plus a genuine end-to-end run against the real local Ollama server — skipped when
+  none is reachable.
+- ⏳ GitHub App / Action and a VS Code extension.
 
 ## Phase 9 — Benchmarks & evaluation ⏳
 Datasets with contamination controls (post-cutoff + mutated splits), detection/verification/

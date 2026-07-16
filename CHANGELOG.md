@@ -64,6 +64,43 @@ All notable changes to CortexWard are documented here. The format is based on
     `cortexward-agents` dependency: it now only knows about `OrchestratorPort` via
     `build_pipeline()`, not the concrete agent-framework types. Pure refactor, zero behavior
     change — every existing CLI test passes unmodified. 100%-covered.
+- **Phase 8 (in progress) — Delivery surfaces: the REST API.** A v1 slice of MPS §20.2's full
+  contract, new workspace package `cortexward-server` (depends on `cortexward-orchestrator` and
+  `cortexward-llm`, `fastapi`).
+  - **`POST /v1/scans`** (202 Accepted), **`GET /v1/scans/{id}`** (poll status),
+    **`GET /v1/scans/{id}/findings`** (list results — the full `Finding` shape, evidence
+    included, unlike SARIF). The request body mirrors `ward scan`'s own CLI flags
+    (`root`/`languages`/`llm_provider`/`llm_model`/`llm_api_key(_env)`/`llm_base_url`/
+    `reachability`) and reuses `cortexward.orchestrator.build_pipeline()`, so a scan behaves
+    identically whether it's driven from the CLI or the API — the exact same code this session's
+    CLI refactor extracted for this purpose.
+  - **`JobStore`** (`cortexward.server.jobs`): a thread-safe, in-memory, single-process job
+    store — a `Job` stays a frozen value (matching `Finding`/`RunState`'s functional-update
+    style), replaced under a lock on each status transition rather than mutated in place. No
+    persistence (`StoragePort` has no adapter yet) and no cross-process sharing; documented as a
+    genuine v1 limitation, not overlooked. Jobs run via FastAPI's `BackgroundTasks`, which
+    Starlette runs in a worker thread for a synchronous function — verified empirically (not
+    assumed) that `TestClient` executes a job to completion before a request returns, so tests
+    need no polling loop.
+  - **Deliberately not implemented**, and documented as such rather than silently missing:
+    authentication, rate-limiting, per-finding `POST /v1/findings/{id}/verify`/`fix` (need a
+    persisted, independently-addressable finding store), `GET /v1/runs/{id}/manifest`
+    (`RunManifest` isn't wired to live scans, only the offline benchmark harness), and
+    `POST /v1/webhooks/{provider}` (needs a `VCSPort` adapter, none exist yet). `POST /v1/scans`
+    accepts an arbitrary filesystem `root` path on the server with no access control — a
+    single-tenant, trusted-caller tool today, matching `ward scan`'s own CLI trust model, not
+    something to expose on an untrusted network without adding real authentication and path
+    scoping first.
+  - Caught and fixed a real Python footgun while building this: `cortexward/server/__init__.py`
+    originally did `from cortexward.server.app import app`, which — because the submodule is
+    also named `app` — silently rebinds the `cortexward.server.app` *attribute* on the package
+    object from "the submodule" to "the FastAPI instance." `import cortexward.server.app as x`
+    resolves through that attribute chain, so `x` would silently become the FastAPI instance
+    instead of the module. Verified this would actually happen (not just a theoretical concern)
+    before removing the re-export.
+  - 100%-covered via FastAPI's `TestClient` against the real app (real `BanditScanner`, no
+    mocking), plus a genuine end-to-end run against the real local Ollama server — skipped when
+    none is reachable, matching the `TestLiveOllama` pattern used throughout this codebase.
 - **Phase 7 (in progress) — Patch generation: gate verification.** `RepairAgent`/`ReviewerAgent`
   already covered minimal-diff generation and advisory review (see Phase 4 below); this adds the
   gate verification MPS §16 requires before `Patch.is_validated`.
