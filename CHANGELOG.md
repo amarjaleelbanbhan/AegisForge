@@ -90,6 +90,14 @@ All notable changes to CortexWard are documented here. The format is based on
   - 100%-covered, including a real fixture round-trip: generate a baseline from a vulnerable
     fixture, confirm `--baseline` suppresses exactly that finding while new findings introduced
     afterward still trip `--fail-on`.
+  - **`ci.yml`'s dogfood job now runs `ward scan` on itself**, replacing the standalone
+    `uvx bandit -r packages/*/src -x "*/tests/*"` step: a bash loop invokes `ward scan
+    "$pkg/src" --baseline cortexward-baseline.json --fail-on high` once per `packages/*/src`
+    (`ward scan` takes one root at a time), so the same scope now runs the full multi-scanner
+    pipeline (bandit + detect-secrets + OSV) instead of bandit alone. `cortexward-baseline.json`
+    (repo root) is `{"suppressions": []}` — this repo's only known false positives (fake
+    secrets, `shell=True` examples) live in test fixtures, out of scope for a `src`-only scan, so
+    nothing needs suppressing today. Verified locally with the exact CI loop before committing.
 - **Phase 8 (in progress) — Delivery surfaces: the REST API.** A v1 slice of MPS §20.2's full
   contract, new workspace package `cortexward-server` (depends on `cortexward-orchestrator` and
   `cortexward-llm`, `fastapi`).

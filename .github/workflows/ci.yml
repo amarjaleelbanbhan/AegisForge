@@ -73,12 +73,16 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-  # Dogfooding: CortexWard scans itself. Bandit stands in for `ward scan .`
-  # (which now exists, via cortexward-cli) until findings-suppression /
-  # baseline support lands — `ward scan packages` currently flags known
-  # false positives in this repo's own test fixtures (e.g. the deliberately
-  # fake secret literals in the detect-secrets adapter's own test suite),
-  # which would fail CI on every push without a way to mark them accepted.
+  # Dogfooding: CortexWard scans itself with its own multi-scanner `ward
+  # scan` (bandit + detect-secrets + OSV) instead of standalone bandit,
+  # scoped to packages/*/src only (same scope the old bandit-only step
+  # used) — ward scan takes one root at a time, so this loops per package.
+  # cortexward-baseline.json (repo root) records any accepted false
+  # positive by fingerprint; today it's empty, since scanning src alone
+  # (no test fixtures, which is where this repo's only known false
+  # positives — fake secrets, shell=True examples — actually live) is
+  # already clean. Regenerate it with `ward baseline <path>` if that
+  # changes.
   dogfood:
     name: Dogfood security scan
     runs-on: ubuntu-latest
@@ -87,9 +91,21 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-      - name: Bandit (self-scan)
-        run: uvx bandit -r packages/*/src -x "*/tests/*"
+      - name: Sync workspace
+        run: uv sync --all-packages --extra dev
+
+      - name: ward scan (self-scan, packages/*/src)
+        run: |
+          for pkg in packages/*/; do
+            if [ -d "${pkg}src" ]; then
+              echo "::group::ward scan ${pkg}src"
+              uv run ward scan "${pkg}src" --baseline cortexward-baseline.json --fail-on high
+              echo "::endgroup::"
+            fi
+          done
 
   # Dependency & secret hygiene, and a software bill of materials, on the
   # tool's own codebase. CortexWard must hold itself to the standard it

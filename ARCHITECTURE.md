@@ -327,23 +327,29 @@ pulled forward from strict phase order: `ci.yml`'s dogfood job had long carried 
 it stood in for `ward scan .` "until cortexward-scanners exists," and by the time the orchestrator
 landed that condition was already met. `ward scan <path>` wires `default_scanners()` →
 `SequentialOrchestrator` → `SarifReporter` into a runnable tool (SARIF to stdout or `--output
-FILE`, `--language` filtering, `--fail-on` controlling the exit code). It is **not** wired into
-`ci.yml` yet: scanning this repo's own `packages/` surfaces real false positives in test fixtures
-(the detect-secrets adapter's own deliberately-fake secret literals, and the literal word
-"secret" in `detect-secrets = "..."` entry-point declarations) that the findings-suppression/
-baseline mechanism below now exists to mark accepted — but a baseline for this repo hasn't been
-generated and committed yet, so the dogfood job still runs bandit directly.
+FILE`, `--language` filtering, `--fail-on` controlling the exit code).
 
-`cortexward.cli.baseline` closes that gap generically: `ward baseline <path>` runs the plain
-scanner pipeline (no LLM — a baseline records what the scanners themselves find today) and writes
-every finding's fingerprint to a JSON file (`{"suppressions": [{"fingerprint", "rule_id", "path",
-"reason"}]}`); `ward scan --baseline FILE` excludes any finding whose fingerprint is listed from
-both the report and the `--fail-on` check. The identity primitive, `fingerprint_for()` (a stable
-hash of `rule_id|path:line|cwe`), lives in `cortexward.domain.fingerprint` — moved there from
-`cortexward.agents.memory` once it became clear it's a domain-level identity concept, not
-agent-specific: `RepositoryMemory`'s suppression tracking (§4.4) and this CLI feature need the
-exact same fingerprint, and the CLI shouldn't need a dependency on the whole agent framework just
-to compute one. `cortexward.agents` re-exports it for backward compatibility.
+`cortexward.cli.baseline` is a findings baseline/suppression mechanism: `ward baseline <path>`
+runs the plain scanner pipeline (no LLM — a baseline records what the scanners themselves find
+today) and writes every finding's fingerprint to a JSON file (`{"suppressions": [{"fingerprint",
+"rule_id", "path", "reason"}]}`); `ward scan --baseline FILE` excludes any finding whose
+fingerprint is listed from both the report and the `--fail-on` check. The identity primitive,
+`fingerprint_for()` (a stable hash of `rule_id|path:line|cwe`), lives in
+`cortexward.domain.fingerprint` — moved there from `cortexward.agents.memory` once it became
+clear it's a domain-level identity concept, not agent-specific: `RepositoryMemory`'s suppression
+tracking (§4.4) and this CLI feature need the exact same fingerprint, and the CLI shouldn't need a
+dependency on the whole agent framework just to compute one. `cortexward.agents` re-exports it for
+backward compatibility.
+
+`ci.yml`'s dogfood job now runs `ward scan` on itself instead of standalone bandit, closing the
+gap that had kept `ward scan` out of CI: since `ward scan` takes one root at a time, a bash loop
+invokes it once per `packages/*/src` — the same `src`-only scope the old bandit-only step used —
+with `--baseline cortexward-baseline.json --fail-on high`. That baseline is currently empty
+(`{"suppressions": []}`): this repo's only known false positives (fake secrets, `shell=True`
+examples in scanner-adapter tests) live in `tests/`, out of scope for a `src`-only scan, so
+nothing needs suppressing yet. Tests remain unscanned by the dogfood job by choice — including
+them would need a much larger baseline (~1,000+ entries, mostly bandit's B101 "assert used" firing
+on every pytest `assert`) for no corresponding security benefit, since test code isn't what ships.
 
 `ward scan --llm-provider <name> --llm-model <model>` (or `--llm-config <yaml>`) swaps in
 `AgentOrchestrator` for `SequentialOrchestrator`, so findings carry real LLM verification and

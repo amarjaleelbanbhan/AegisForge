@@ -287,9 +287,11 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   scanners and the orchestrator both exist. `ward scan <path>` wires `default_scanners()` →
   `SequentialOrchestrator` → `SarifReporter` into a runnable tool: SARIF to stdout or `--output
   FILE`, `--language` filtering, `--fail-on {none,low,medium,high,critical}` controlling the exit
-  code (default `high`). **Not yet wired into `ci.yml`**: the baseline/suppression mechanism below
-  now exists to mark this repo's own known false positives accepted, but a baseline for this
-  repo hasn't been generated and committed yet, and the dogfood job still runs bandit directly.
+  code (default `high`). **Now wired into `ci.yml`**: the dogfood job runs `ward scan` (bandit +
+  detect-secrets + OSV, via `--baseline cortexward-baseline.json`) instead of standalone bandit,
+  looped once per `packages/*/src` — the same scope the old bandit-only step used. The baseline
+  is currently empty: this repo's only known false positives (fake secrets, `shell=True` examples)
+  live in test fixtures, out of scope for a `src`-only scan, so nothing needs suppressing today.
   100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/
   `SecretsScanner` runs against fixtures (no mocking).
   - ✅ **`ward scan --llm-provider`** opts into the agent-driven pipeline
@@ -327,6 +329,14 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
     detect-secrets otherwise computes each secret's reported path via
     `os.path.relpath(..., os.getcwd())`, which raises on Windows whenever the scanned root and the
     process's cwd sit on different drives.
+  - **`ci.yml`'s dogfood job now runs `ward scan` on itself**, closing the gap noted above: a
+    bash loop invokes `ward scan "$pkg/src" --baseline cortexward-baseline.json --fail-on high`
+    once per `packages/*/src` (`ward scan` takes one root at a time), replacing the standalone
+    `uvx bandit -r packages/*/src -x "*/tests/*"` step with the full multi-scanner pipeline at
+    the same scope. `cortexward-baseline.json` (repo root, generated via `ward baseline`) is
+    currently `{"suppressions": []}` — empty, since `src`-only scanning excludes the test
+    fixtures where this repo's only known false positives actually live; verified locally with
+    the exact loop before committing (every package's `src` scans clean, exit code 0).
 - ✅ **`cortexward-server`** (new workspace package): a v1 slice of MPS §20.2's REST API contract.
   `POST /v1/scans` (create a job, 202 Accepted), `GET /v1/scans/{id}` (poll status),
   `GET /v1/scans/{id}/findings` (list results, the full `Finding` shape — evidence included,
