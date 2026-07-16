@@ -1,12 +1,14 @@
 """The `ward` CLI entry point (MPS §8, Phase 8 — delivery surfaces).
 
-Ships one command so far: `ward scan <path>`, wiring together everything
-built in earlier phases (auto-discovered scanners → `SequentialOrchestrator`
-→ cross-tool correlation → a `ReporterPort`) into an actual runnable tool,
-rather than leaving those pieces as library-only building blocks. This is a
-minimal, literal fulfillment of `ci.yml`'s own dogfood-job comment ("this
-job is replaced once cortexward-scanners exists, at which point `ward scan
-.` runs here") now that scanners and the orchestrator both exist.
+Ships two commands: `ward scan <path>`, wiring together everything built in
+earlier phases (auto-discovered scanners → `SequentialOrchestrator` →
+cross-tool correlation → a `ReporterPort`) into an actual runnable tool,
+rather than leaving those pieces as library-only building blocks; and `ward
+serve`, running `cortexward-server`'s REST API (`cortexward.server.app`) via
+`uvicorn`. `scan` is a minimal, literal fulfillment of `ci.yml`'s own
+dogfood-job comment ("this job is replaced once cortexward-scanners exists,
+at which point `ward scan .` runs here") now that scanners and the
+orchestrator both exist.
 
 `scan` also optionally drives the agent-driven pipeline
 (`cortexward.agents.AgentOrchestrator`) instead of the plain scan-and-
@@ -18,8 +20,7 @@ opt-in, never a silent default, since it needs a real LLM backend
 (local Ollama or a configured commercial provider) to be worth the extra
 latency and cost.
 
-The remaining Phase 8 surfaces (REST API, GitHub App, VS Code extension) are
-unbuilt.
+The remaining Phase 8 surfaces (GitHub App, VS Code extension) are unbuilt.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from pathlib import Path
 from typing import Annotated, cast
 
 import typer
+import uvicorn
 
 from cortexward.domain import Severity
 from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, load_llm_config
@@ -229,6 +231,26 @@ def scan(
 
     if threshold is not None and any(finding.severity >= threshold for finding in result.findings):
         raise typer.Exit(code=1)
+
+
+@app.command()
+def serve(
+    host: Annotated[
+        str, typer.Option("--host", help="Bind address for the REST API.")
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port for the REST API.")] = 8000,
+    reload: Annotated[
+        bool, typer.Option("--reload", help="Auto-reload on source changes (development only).")
+    ] = False,
+) -> None:
+    """Run the CortexWard REST API (see `cortexward-server`; MPS §20.2).
+
+    A single-tenant, trusted-caller tool: no authentication, no
+    rate-limiting, and `POST /v1/scans` accepts any filesystem path
+    reachable from this process. Do not bind `--host 0.0.0.0` on a
+    network you don't fully trust.
+    """
+    uvicorn.run("cortexward.server.app:app", host=host, port=port, reload=reload)
 
 
 def main() -> None:

@@ -101,6 +101,14 @@ All notable changes to CortexWard are documented here. The format is based on
   - 100%-covered via FastAPI's `TestClient` against the real app (real `BanditScanner`, no
     mocking), plus a genuine end-to-end run against the real local Ollama server — skipped when
     none is reachable, matching the `TestLiveOllama` pattern used throughout this codebase.
+  - **`ward serve`**: wires the REST API into the CLI — `uvicorn.run("cortexward.server.app:app",
+    host=..., port=..., reload=...)`. `cortexward-cli` gains `cortexward-server` and `uvicorn` as
+    hard dependencies (not an optional extra) so the command genuinely works, not just imports
+    cleanly. Verified with a real running process: started `ward serve`, `POST`ed a real scan
+    request over an actual HTTP connection, polled it to `"completed"`, then stopped the exact
+    process by its PID (not a blanket `taskkill`, which the harness itself correctly refused as
+    too broad). 100%-covered — the CLI test monkeypatches `uvicorn.run` itself so tests don't
+    block on binding a real port.
 - **Phase 7 (in progress) — Patch generation: gate verification.** `RepairAgent`/`ReviewerAgent`
   already covered minimal-diff generation and advisory review (see Phase 4 below); this adds the
   gate verification MPS §16 requires before `Patch.is_validated`.

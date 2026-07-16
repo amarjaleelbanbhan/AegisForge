@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.error import URLError
 
 import pytest
+import uvicorn
 from typer.testing import CliRunner
 
 from cortexward.cli import app, main
@@ -246,6 +247,42 @@ class TestLlmVerification:
         assert result.exit_code == 0
         document = json.loads(result.stdout)
         assert len(document["runs"][0]["results"]) >= 1
+
+
+class TestServeCommand:
+    """`serve` delegates to `uvicorn.run` -- monkeypatched here so tests don't
+    actually bind a port and block; the wiring itself (which module:attr
+    string, which host/port/reload) is what's under test."""
+
+    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict[str, object] = {}
+
+        def _fake_run(target: str, **kwargs: object) -> None:
+            captured.update({"target": target, **kwargs})
+
+        monkeypatch.setattr(uvicorn, "run", _fake_run)
+        result = runner.invoke(app, ["serve"])
+        assert result.exit_code == 0
+        assert captured["target"] == "cortexward.server.app:app"
+        assert captured["host"] == "127.0.0.1"
+        assert captured["port"] == 8000
+        assert captured["reload"] is False
+
+    def test_custom_host_port_and_reload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict[str, object] = {}
+
+        def _fake_run(target: str, **kwargs: object) -> None:
+            captured.update({"target": target, **kwargs})
+
+        monkeypatch.setattr(uvicorn, "run", _fake_run)
+        result = runner.invoke(
+            app,
+            ["serve", "--host", "0.0.0.0", "--port", "9000", "--reload"],  # noqa: S104
+        )
+        assert result.exit_code == 0
+        assert captured["host"] == "0.0.0.0"  # noqa: S104
+        assert captured["port"] == 9000
+        assert captured["reload"] is True
 
 
 class TestEntryPoint:

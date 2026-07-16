@@ -323,6 +323,12 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   network. 100%-covered via FastAPI's `TestClient` against the real app (real `BanditScanner`,
   no mocking), plus a genuine end-to-end run against the real local Ollama server — skipped when
   none is reachable.
+- ✅ **`ward serve`** wires the REST API into the CLI: `uvicorn.run("cortexward.server.app:app",
+  host, port, reload)`. `cortexward-cli` gains `cortexward-server`/`uvicorn` as hard dependencies
+  (not an optional extra) so the command genuinely works out of the box. Verified with a real
+  running process, not just tests: started `ward serve`, `POST`ed a real scan request, polled it
+  to `"completed"` over an actual HTTP connection, then stopped the exact process by its PID.
+  100%-covered (the CLI test monkeypatches `uvicorn.run` itself so tests don't bind a port).
 - ⏳ GitHub App / Action and a VS Code extension.
 
 ## Phase 9 — Benchmarks & evaluation ⏳

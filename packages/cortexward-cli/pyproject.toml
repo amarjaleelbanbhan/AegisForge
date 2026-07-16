@@ -5,7 +5,10 @@
 # pipeline into an actual runnable tool. Also depends on cortexward-llm
 # directly for LLMProviderConfig/load_llm_config, to turn `--llm-*` CLI
 # flags into the config build_pipeline() takes — no direct dependency on
-# cortexward-agents; the CLI only knows about OrchestratorPort.
+# cortexward-agents; the CLI only knows about OrchestratorPort. `ward serve`
+# needs cortexward-server (so `uvicorn.run("cortexward.server.app:app", ...)`
+# resolves) and uvicorn itself; both are hard dependencies, not an optional
+# extra, so `ward serve` genuinely works out of the box.
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
@@ -35,7 +38,9 @@ dependencies = [
   "cortexward-llm",
   "cortexward-orchestrator",
   "cortexward-reporters",
+  "cortexward-server",
   "typer>=0.12,<1",
+  "uvicorn[standard]>=0.30,<1",
 ]
 
 [project.urls]
@@ -50,6 +55,7 @@ cortexward-core = { workspace = true }
 cortexward-llm = { workspace = true }
 cortexward-orchestrator = { workspace = true }
 cortexward-reporters = { workspace = true }
+cortexward-server = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cortexward"]

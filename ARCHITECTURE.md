@@ -350,8 +350,12 @@ than leaving it private to the CLI. Jobs run via FastAPI's `BackgroundTasks` aga
 `JobStore` (`cortexward.server.jobs`) — thread-safe, in-memory, single-process; no persistence,
 since `StoragePort` has no adapter yet to persist into, and no auth/rate-limiting, since a
 single-tenant trust model is all this project has infrastructure for today. Both limitations are
-documented in the module docstring, not silently missing. The GitHub App/Action and VS Code
-extension are what's left of Phase 8.
+documented in the module docstring, not silently missing. `ward serve` wires this into the CLI
+(`uvicorn.run("cortexward.server.app:app", ...)`) — `cortexward-cli` takes `cortexward-server`
+and `uvicorn` as hard dependencies so the command works out of the box, verified against a real
+running process (not just tests): started the server, `POST`ed a real scan over HTTP, polled it
+to completion, stopped the exact process by PID. The GitHub App/Action and VS Code extension are
+what's left of Phase 8.
 
 ## 5. Cross-cutting concerns
 

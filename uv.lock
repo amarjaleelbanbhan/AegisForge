@@ -238,7 +238,9 @@ dependencies = [
     { name = "cortexward-llm" },
     { name = "cortexward-orchestrator" },
     { name = "cortexward-reporters" },
+    { name = "cortexward-server" },
     { name = "typer" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
@@ -247,7 +249,9 @@ requires-dist = [
     { name = "cortexward-llm", editable = "packages/cortexward-llm" },
     { name = "cortexward-orchestrator", editable = "packages/cortexward-orchestrator" },
     { name = "cortexward-reporters", editable = "packages/cortexward-reporters" },
+    { name = "cortexward-server", editable = "packages/cortexward-server" },
     { name = "typer", specifier = ">=0.12,<1" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
 ]
 
 [[package]]
