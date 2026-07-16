@@ -17,34 +17,20 @@ against by default.
 
 Memory only *informs* prompts via retrieval — it never updates model
 weights and never bypasses the Verification Ladder (MPS §15).
+
+`fingerprint_for` lives in `cortexward.domain` (re-exported here for
+backward compatibility) — it turned out to be a domain-level identity
+concept, not agent-specific: the CLI's `--baseline` suppression file needs
+the exact same fingerprint this module's `RepositoryMemory` uses, without
+needing to depend on the whole agent framework to compute one.
 """
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from cortexward.domain import Finding
-
-
-def fingerprint_for(finding: Finding) -> str:
-    """A stable identity key for cross-run suppression matching.
-
-    Deliberately simple — rule id + primary location + CWE — mirroring the
-    same pragmatism already documented in `cortexward.scanners.normalize`'s
-    correlation matcher (no fixed, formal fingerprint concept exists
-    elsewhere in the domain model yet). Two findings at the same
-    rule/location/CWE across separate runs collapse to the same
-    fingerprint, which is exactly what "was this specific issue already
-    triaged" needs.
-    """
-    location = finding.locations[0] if finding.locations else None
-    location_key = (
-        f"{location.path}:{location.start_line}" if location is not None else "no-location"
-    )
-    raw = f"{finding.rule_id}|{location_key}|{finding.cwe}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+from cortexward.domain import fingerprint_for
 
 
 @dataclass(frozen=True)

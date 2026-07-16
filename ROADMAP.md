@@ -287,11 +287,10 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   scanners and the orchestrator both exist. `ward scan <path>` wires `default_scanners()` →
   `SequentialOrchestrator` → `SarifReporter` into a runnable tool: SARIF to stdout or `--output
   FILE`, `--language` filtering, `--fail-on {none,low,medium,high,critical}` controlling the exit
-  code (default `high`). **Not yet wired into `ci.yml`**: `ward scan packages` currently flags
-  known false positives in this repo's own test fixtures (e.g. the deliberately fake secret
-  literals in the detect-secrets adapter's own tests) that a findings-suppression/baseline
-  mechanism would need to mark accepted — the dogfood job still runs bandit directly until that
-  exists. 100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/
+  code (default `high`). **Not yet wired into `ci.yml`**: the baseline/suppression mechanism below
+  now exists to mark this repo's own known false positives accepted, but a baseline for this
+  repo hasn't been generated and committed yet, and the dogfood job still runs bandit directly.
+  100%-covered via `typer.testing.CliRunner`, including real `BanditScanner`/
   `SecretsScanner` runs against fixtures (no mocking).
   - ✅ **`ward scan --llm-provider`** opts into the agent-driven pipeline
     (`cortexward.agents.AgentOrchestrator`) instead of `SequentialOrchestrator`, so findings carry
@@ -309,6 +308,25 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
     `--llm-provider` bullet above left open: SARIF's `properties.state` reflects the richer
     verification outcome, but the underlying evidence list needs `--format cortexward-json` to
     actually be visible. 100%-covered, including an unknown-format rejection test.
+  - ✅ **`ward scan --baseline`** and **`ward baseline`** — a findings baseline/suppression
+    mechanism (`cortexward.cli.baseline`), closing the gap the bullet above left open: known/
+    accepted findings a scan shouldn't re-flag. `ward baseline <path> [--output FILE] [--reason
+    TEXT]` runs the plain scanner pipeline (deliberately no LLM — a baseline records what the
+    scanners themselves find today, not an LLM-influenced verification outcome) and writes each
+    finding's fingerprint to a JSON file (`{"suppressions": [{"fingerprint", "rule_id", "path",
+    "reason"}]}`); `ward scan --baseline FILE` excludes any finding whose fingerprint is listed
+    from both the rendered report and the `--fail-on` exit-code check. The identity primitive,
+    `fingerprint_for()` (stable hash of `rule_id|path:line|cwe`), moved from
+    `cortexward.agents.memory` to `cortexward.domain.fingerprint` — it turned out to be a
+    domain-level identity concept needed by both agent repository-memory suppression and this new
+    CLI feature, not agent-specific; `cortexward.agents` still re-exports it for backward
+    compatibility. 100%-covered, including a real fixture round-trip (generate a baseline, then
+    confirm a `--baseline` scan suppresses exactly that finding while still flagging new ones).
+    Along the way, fixed a genuine cross-platform bug this surfaced: `SecretsScanner` now
+    constructs `SecretsCollection(root=str(resolved_root))` instead of leaving it defaulted, since
+    detect-secrets otherwise computes each secret's reported path via
+    `os.path.relpath(..., os.getcwd())`, which raises on Windows whenever the scanned root and the
+    process's cwd sit on different drives.
 - ✅ **`cortexward-server`** (new workspace package): a v1 slice of MPS §20.2's REST API contract.
   `POST /v1/scans` (create a job, 202 Accepted), `GET /v1/scans/{id}` (poll status),
   `GET /v1/scans/{id}/findings` (list results, the full `Finding` shape — evidence included,

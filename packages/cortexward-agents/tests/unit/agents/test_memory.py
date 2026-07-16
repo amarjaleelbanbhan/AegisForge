@@ -12,6 +12,7 @@ from cortexward.agents import (
     fingerprint_for,
 )
 from cortexward.domain import Finding, Provenance, SourceLocation
+from cortexward.domain import fingerprint_for as domain_fingerprint_for
 
 pytestmark = pytest.mark.unit
 
@@ -29,26 +30,16 @@ def _finding(
     )
 
 
-class TestFingerprintFor:
-    def test_identical_findings_produce_the_same_fingerprint(self) -> None:
-        a = _finding()
-        b = _finding()
-        assert fingerprint_for(a) == fingerprint_for(b)
+class TestFingerprintForReExport:
+    """The full behavioral suite now lives in cortexward-core's
+    test_fingerprint.py, since `fingerprint_for` moved to `cortexward.domain`
+    (a domain-level identity concept, not agent-specific) — this just
+    confirms the re-export `cortexward.agents` still exposes is wired to the
+    real implementation, not a stale copy."""
 
-    def test_different_rule_ids_produce_different_fingerprints(self) -> None:
-        assert fingerprint_for(_finding(rule_id="A")) != fingerprint_for(_finding(rule_id="B"))
-
-    def test_different_locations_produce_different_fingerprints(self) -> None:
-        assert fingerprint_for(_finding(line=1)) != fingerprint_for(_finding(line=2))
-
-    def test_different_cwes_produce_different_fingerprints(self) -> None:
-        assert fingerprint_for(_finding(cwe=79)) != fingerprint_for(_finding(cwe=89))
-
-    def test_a_finding_with_no_location_does_not_crash(self) -> None:
-        finding = Finding(
-            rule_id="R1", title="t", message="m", provenance=Provenance(producer="test")
-        )
-        assert fingerprint_for(finding)
+    def test_re_exported_fingerprint_for_matches_the_domain_implementation(self) -> None:
+        finding = _finding()
+        assert fingerprint_for(finding) == domain_fingerprint_for(finding)
 
 
 class TestInMemoryRepositoryMemory:

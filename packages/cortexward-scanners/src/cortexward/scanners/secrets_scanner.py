@@ -8,6 +8,12 @@ current working directory unless a matching ``root`` kwarg is threaded
 through just right; walking the tree ourselves and passing absolute paths
 straight into `scan_files` sidesteps that entirely and matches the same
 root-relative-path convention every other scanner adapter here uses.
+`SecretsCollection` itself is constructed with `root=str(resolved_root)`
+for the same reason: left at its default, it computes each secret's
+reported path via `os.path.relpath(..., os.getcwd())`, which raises on
+Windows whenever the scanned root and the process's cwd sit on different
+drives — a real scenario (`ward scan` invoked against a project on a
+different drive than the shell's cwd), not just a test artifact.
 
 **Security property preserved:** detect-secrets never returns a matched
 secret's actual value, only a one-way hash (`hashed_secret`) — `RawFinding
@@ -111,7 +117,7 @@ class SecretsScanner:
         files = _iter_scannable_files(resolved_root)
         if not files:
             return
-        secrets = SecretsCollection()
+        secrets = SecretsCollection(root=str(resolved_root))
         with default_settings():
             secrets.scan_files(*(str(f) for f in files))
         for secret_set in secrets.data.values():

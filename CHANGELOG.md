@@ -64,6 +64,32 @@ All notable changes to CortexWard are documented here. The format is based on
     `cortexward-agents` dependency: it now only knows about `OrchestratorPort` via
     `build_pipeline()`, not the concrete agent-framework types. Pure refactor, zero behavior
     change — every existing CLI test passes unmodified. 100%-covered.
+  - **`ward scan --baseline`/`ward baseline`**: a findings baseline/suppression mechanism
+    (`cortexward.cli.baseline`), closing the gap the `--not-wired-into-ci.yml` note above left
+    open. `ward baseline <path> [--output cortexward-baseline.json] [--language ...] [--reason
+    TEXT]` runs the plain scanner pipeline (deliberately no LLM flags — a baseline records what
+    the scanners themselves find today, not an LLM-influenced verification outcome) and writes
+    every finding's fingerprint to a JSON file: `{"suppressions": [{"fingerprint", "rule_id",
+    "path", "reason"}]}`. `ward scan --baseline FILE` excludes any finding whose fingerprint
+    appears in the baseline from both the rendered report and the `--fail-on` exit-code check.
+  - **`fingerprint_for()` relocated** from `cortexward.agents.memory` to the new
+    `cortexward.domain.fingerprint` module: it turned out to be a domain-level identity concept
+    (a stable hash of `rule_id|path:line|cwe`), not agent-specific — `RepositoryMemory`'s
+    suppression tracking and this new CLI baseline feature need the exact same fingerprint
+    without the CLI needing a dependency on the whole agent framework. `cortexward.agents`
+    re-exports it for backward compatibility. 100%-covered: the full behavioral suite moved to
+    `cortexward-core`'s `test_fingerprint.py`; `cortexward-agents`' own test now just confirms the
+    re-export matches the domain implementation.
+  - Fixed a real, pre-existing cross-platform bug this surfaced: `SecretsScanner` constructed
+    `SecretsCollection()` with no `root`, so detect-secrets computed each secret's reported path
+    via `os.path.relpath(secret.filename, os.getcwd())` — correct on Linux (CI), but raising
+    `ValueError` on Windows whenever the scanned root and the process's cwd sit on different
+    drives (e.g. a project on `D:` scanned from a shell whose cwd is elsewhere). Fixed by passing
+    `root=str(resolved_root)` into `SecretsCollection` explicitly. Found via a genuine baseline
+    round-trip test failure, not a synthetic drive-mismatch test.
+  - 100%-covered, including a real fixture round-trip: generate a baseline from a vulnerable
+    fixture, confirm `--baseline` suppresses exactly that finding while new findings introduced
+    afterward still trip `--fail-on`.
 - **Phase 8 (in progress) — Delivery surfaces: the REST API.** A v1 slice of MPS §20.2's full
   contract, new workspace package `cortexward-server` (depends on `cortexward-orchestrator` and
   `cortexward-llm`, `fastapi`).

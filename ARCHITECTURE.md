@@ -118,6 +118,9 @@ Pure model and services with no I/O:
 - `models` — `SourceLocation`, `Provenance`, `Evidence`, `Patch`, and the `Finding` aggregate.
 - `value_objects` — `Assessment` (derived conclusions).
 - `verification` — the calibration engine (`calibrate_confidence`, `assess`, `apply_assessment`).
+- `fingerprint` — `fingerprint_for(finding)`, a stable identity hash (`rule_id|path:line|cwe`)
+  used to recognize "the same finding" across runs, independent of any particular consumer
+  (agent repository memory, the CLI's baseline mechanism — see §4.7 and §4.4).
 
 Findings are updated functionally (`with_evidence`, `with_state`) so no agent mutates shared
 state by accident; the orchestrator threads new values explicitly.
@@ -327,9 +330,20 @@ landed that condition was already met. `ward scan <path>` wires `default_scanner
 FILE`, `--language` filtering, `--fail-on` controlling the exit code). It is **not** wired into
 `ci.yml` yet: scanning this repo's own `packages/` surfaces real false positives in test fixtures
 (the detect-secrets adapter's own deliberately-fake secret literals, and the literal word
-"secret" in `detect-secrets = "..."` entry-point declarations) that a findings-suppression/
-baseline mechanism would need to mark accepted — without one, the dogfood job would fail on every
-push for reasons that aren't real vulnerabilities.
+"secret" in `detect-secrets = "..."` entry-point declarations) that the findings-suppression/
+baseline mechanism below now exists to mark accepted — but a baseline for this repo hasn't been
+generated and committed yet, so the dogfood job still runs bandit directly.
+
+`cortexward.cli.baseline` closes that gap generically: `ward baseline <path>` runs the plain
+scanner pipeline (no LLM — a baseline records what the scanners themselves find today) and writes
+every finding's fingerprint to a JSON file (`{"suppressions": [{"fingerprint", "rule_id", "path",
+"reason"}]}`); `ward scan --baseline FILE` excludes any finding whose fingerprint is listed from
+both the report and the `--fail-on` check. The identity primitive, `fingerprint_for()` (a stable
+hash of `rule_id|path:line|cwe`), lives in `cortexward.domain.fingerprint` — moved there from
+`cortexward.agents.memory` once it became clear it's a domain-level identity concept, not
+agent-specific: `RepositoryMemory`'s suppression tracking (§4.4) and this CLI feature need the
+exact same fingerprint, and the CLI shouldn't need a dependency on the whole agent framework just
+to compute one. `cortexward.agents` re-exports it for backward compatibility.
 
 `ward scan --llm-provider <name> --llm-model <model>` (or `--llm-config <yaml>`) swaps in
 `AgentOrchestrator` for `SequentialOrchestrator`, so findings carry real LLM verification and

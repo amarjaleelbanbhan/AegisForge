@@ -32,6 +32,7 @@ from typing import Annotated, cast
 import typer
 import uvicorn
 
+from cortexward.cli.baseline import filter_baseline, load_baseline, write_baseline
 from cortexward.domain import Severity
 from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, load_llm_config
 from cortexward.orchestrator import build_pipeline
@@ -199,6 +200,18 @@ def scan(
             help="With an LLM provider configured, also attach control-flow reachability evidence.",
         ),
     ] = True,
+    baseline: Annotated[
+        Path | None,
+        typer.Option(
+            "--baseline",
+            help=(
+                "Exclude findings listed in this baseline file (see `ward baseline`) from "
+                "both the report and the --fail-on exit code."
+            ),
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
 ) -> None:
     """Scan PATH with every registered scanner and report findings."""
     threshold = _severity_threshold(fail_on)
@@ -222,15 +235,53 @@ def scan(
     request = AnalysisRequest(root=resolved_root, languages=tuple(language))
     result = orchestrator.run(request)
 
-    artifact = reporter.render(result.findings)
+    findings = result.findings
+    if baseline is not None:
+        findings = filter_baseline(findings, load_baseline(baseline))
+
+    artifact = reporter.render(findings)
     if output is not None:
         output.write_bytes(artifact.content)
-        typer.echo(f"Wrote {len(result.findings)} finding(s) to {output}", err=True)
+        typer.echo(f"Wrote {len(findings)} finding(s) to {output}", err=True)
     else:
         sys.stdout.buffer.write(artifact.content)
 
-    if threshold is not None and any(finding.severity >= threshold for finding in result.findings):
+    if threshold is not None and any(finding.severity >= threshold for finding in findings):
         raise typer.Exit(code=1)
+
+
+@app.command("baseline")
+def generate_baseline(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Root directory to scan.", exists=True, file_okay=False),
+    ] = Path("."),
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Baseline file to write."),
+    ] = Path("cortexward-baseline.json"),
+    language: Annotated[
+        list[str],
+        typer.Option("--language", "-l", help="Restrict scanning to these languages (repeatable)."),
+    ] = [],  # noqa: B006 - typer treats this as an immutable per-invocation default
+    reason: Annotated[
+        str,
+        typer.Option("--reason", help="Recorded on every suppression entry, for reviewers."),
+    ] = "accepted at baseline generation time",
+) -> None:
+    """Record every current scanner finding under PATH as accepted, in OUTPUT.
+
+    Deliberately scanner-only, with no LLM verification: a baseline records
+    what the plain scanners find today, not an LLM-influenced verification
+    outcome. Re-run this after fixing or accepting new findings to update it.
+    """
+    resolved_root = path.resolve()
+    orchestrator = build_pipeline(llm_config=None, root=resolved_root, languages=tuple(language))
+    request = AnalysisRequest(root=resolved_root, languages=tuple(language))
+    result = orchestrator.run(request)
+
+    write_baseline(output, result.findings, reason=reason)
+    typer.echo(f"Wrote {len(result.findings)} finding(s) to baseline {output}", err=True)
 
 
 @app.command()

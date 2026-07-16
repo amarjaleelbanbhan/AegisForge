@@ -16,6 +16,7 @@ from cortexward.domain.enums import (
     VerificationRung,
     VexStatus,
 )
+from cortexward.domain.fingerprint import fingerprint_for
 from cortexward.domain.models import (
     Evidence,
     Finding,
@@ -45,4 +46,5 @@ __all__ = [
     "apply_assessment",
     "assess",
     "calibrate_confidence",
+    "fingerprint_for",
 ]

@@ -249,6 +249,105 @@ class TestLlmVerification:
         assert len(document["runs"][0]["results"]) >= 1
 
 
+class TestBaselineOption:
+    """The baseline file itself is written *outside* the scanned directory in
+    these tests — not just for tidiness. `ward scan` walks every file under
+    its target root including any baseline sitting inside it, and a baseline
+    file's own fingerprint hashes are exactly the kind of high-entropy hex
+    string detect-secrets flags as a possible secret, producing a spurious
+    new finding that (correctly) isn't suppressed since it postdates the
+    baseline it would need to appear in."""
+
+    def test_baseline_suppresses_a_previously_recorded_finding(self, tmp_path: Path) -> None:
+        target = tmp_path / "target"
+        target.mkdir()
+        _write_vulnerable_file(target)
+        baseline_path = tmp_path / "baseline.json"
+        generate_result = runner.invoke(
+            app, ["baseline", str(target), "--output", str(baseline_path)]
+        )
+        assert generate_result.exit_code == 0
+        assert baseline_path.exists()
+
+        scan_result = runner.invoke(
+            app, ["scan", str(target), "--baseline", str(baseline_path), "--fail-on", "none"]
+        )
+        assert scan_result.exit_code == 0
+        document = json.loads(scan_result.stdout)
+        assert document["runs"][0]["results"] == []
+
+    def test_baseline_does_not_suppress_the_fail_on_exit_code_for_new_findings(
+        self, tmp_path: Path
+    ) -> None:
+        target = tmp_path / "target"
+        target.mkdir()
+        _write_clean_file(target)
+        baseline_path = tmp_path / "baseline.json"
+        generate_result = runner.invoke(
+            app, ["baseline", str(target), "--output", str(baseline_path)]
+        )
+        assert generate_result.exit_code == 0
+
+        _write_vulnerable_file(target)
+        scan_result = runner.invoke(
+            app, ["scan", str(target), "--baseline", str(baseline_path)]
+        )
+        assert scan_result.exit_code == 1
+
+    def test_nonexistent_baseline_path_is_rejected(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--baseline", str(tmp_path / "missing.json")]
+        )
+        assert result.exit_code != 0
+
+
+class TestBaselineCommand:
+    def test_generates_a_baseline_file_recording_current_findings(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        output_path = tmp_path / "baseline.json"
+        result = runner.invoke(app, ["baseline", str(tmp_path), "--output", str(output_path)])
+        assert result.exit_code == 0
+        document = json.loads(output_path.read_text())
+        assert len(document["suppressions"]) >= 1
+        assert document["suppressions"][0]["fingerprint"]
+
+    def test_default_output_path_is_cortexward_baseline_json(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_vulnerable_file(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["baseline", str(tmp_path)])
+        assert result.exit_code == 0
+        assert (tmp_path / "cortexward-baseline.json").exists()
+
+    def test_custom_reason_is_recorded_on_every_entry(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        output_path = tmp_path / "baseline.json"
+        result = runner.invoke(
+            app,
+            [
+                "baseline",
+                str(tmp_path),
+                "--output",
+                str(output_path),
+                "--reason",
+                "known false positive in fixture",
+            ],
+        )
+        assert result.exit_code == 0
+        document = json.loads(output_path.read_text())
+        assert document["suppressions"][0]["reason"] == "known false positive in fixture"
+
+    def test_a_clean_directory_produces_an_empty_baseline(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        output_path = tmp_path / "baseline.json"
+        result = runner.invoke(app, ["baseline", str(tmp_path), "--output", str(output_path)])
+        assert result.exit_code == 0
+        document = json.loads(output_path.read_text())
+        assert document["suppressions"] == []
+
+
 class TestServeCommand:
     """`serve` delegates to `uvicorn.run` -- monkeypatched here so tests don't
     actually bind a port and block; the wiring itself (which module:attr
