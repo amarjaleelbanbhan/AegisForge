@@ -7,6 +7,7 @@ consistent with this codebase's preference for real integration tests.
 
 from __future__ import annotations
 
+import importlib
 import json
 import runpy
 import sys
@@ -20,6 +21,17 @@ import uvicorn
 from typer.testing import CliRunner
 
 from cortexward.cli import app, main
+from cortexward.llm import LLMProviderConfig, Provider
+from cortexward.orchestrator import SequentialOrchestrator
+
+# `cortexward.cli.main` (the submodule) and `main` (the CLI entry-point
+# function re-exported from it in cortexward/cli/__init__.py, imported
+# above) share a name; that re-export rebinds the *attribute*
+# `cortexward.cli.main` from "the submodule" to "the function" (Python's
+# `import a.b.c as x` resolves via attribute traversal from `a`, not via
+# `sys.modules`, so it's affected by this too) — `importlib.import_module`
+# is the one route that reliably returns the real module regardless.
+_cli_main_module = importlib.import_module("cortexward.cli.main")
 
 pytestmark = pytest.mark.unit
 
@@ -222,6 +234,43 @@ class TestLlmVerification:
         config_path.write_text("provider: ollama\n", encoding="utf-8")  # missing required model
         result = runner.invoke(app, ["scan", str(tmp_path), "--llm-config", str(config_path)])
         assert result.exit_code != 0
+
+    def test_valid_llm_provider_and_model_resolve_a_config(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Exercises _resolve_llm_config's success path deterministically,
+        # without a live LLM backend: swap in a fake build_pipeline that
+        # just records what it was called with and returns a real (no-op)
+        # SequentialOrchestrator. The end-to-end test below covers the same
+        # path against a real Ollama server, but it's skipped whenever none
+        # is reachable (always true in CI), so this is the only path this
+        # branch is covered by there.
+        _write_clean_file(tmp_path)
+        captured: dict[str, object] = {}
+
+        def _fake_build_pipeline(**kwargs: object) -> SequentialOrchestrator:
+            captured.update(kwargs)
+            return SequentialOrchestrator(scanners=())
+
+        monkeypatch.setattr(_cli_main_module, "build_pipeline", _fake_build_pipeline)
+        result = runner.invoke(
+            app,
+            [
+                "scan",
+                str(tmp_path),
+                "--llm-provider",
+                "ollama",
+                "--llm-model",
+                "qwen2.5-coder:7b",
+                "--fail-on",
+                "none",
+            ],
+        )
+        assert result.exit_code == 0
+        llm_config = captured["llm_config"]
+        assert isinstance(llm_config, LLMProviderConfig)
+        assert llm_config.provider == Provider.OLLAMA
+        assert llm_config.model == "qwen2.5-coder:7b"
 
     @pytest.mark.integration
     @pytest.mark.skipif(not _ollama_is_running(), reason="no local Ollama server reachable")
