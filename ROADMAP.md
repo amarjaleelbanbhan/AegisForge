@@ -104,6 +104,14 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
   `properties`. An export format only (ADR-0003) — `Finding` stays the richer internal model
   (evidence, verification rung, VEX status) that SARIF's single-message `result` shape can't
   express.
+- ✅ **CortexWard-native JSON export**: `JsonReporter` (`cortexward.reporters.json_reporter`,
+  `format_id = "cortexward-json"`), the "future work" `SarifReporter`'s own docstring flagged for
+  the full evidence trail SARIF can't carry. Delegates to `Finding.model_dump(mode="json")` rather
+  than a hand-maintained field mapping, since `Finding`/`Evidence`/`Provenance` are already
+  pydantic models — every `Evidence` item (LLM assessment reasoning, reachability-proof summaries,
+  verification rung, ...) survives intact instead of being narrowed to just `state`. Registered
+  under `cortexward.reporters` alongside `sarif`; selectable from `ward scan --format
+  cortexward-json` (see Phase 8).
 - ✅ **Dependency-vulnerability adapter**: `OsvScanner` queries the public OSV.dev API for known
   vulnerabilities in *exactly-pinned* dependencies (`==X.Y.Z` in `requirements*.txt` or a PEP 621
   `dependencies` entry). Range constraints (`>=2.0`) are skipped, not guessed at — resolving a
@@ -267,11 +275,15 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
     provider setup, or `--llm-config <yaml>` (reusing `cortexward.llm.load_llm_config`) for the
     full config-file path; `--no-reachability` opts out of the `build_code_graphs()` step. With no
     LLM flags given, behavior is byte-for-byte identical to before this — the agent pipeline is
-    opt-in, never a silent default. SARIF's `properties.state` reflects the richer verification
-    outcome (`candidate`/`triaged`/`refuted`/...); the underlying evidence list itself isn't
-    (yet) serialized into SARIF — `SarifReporter`'s own docs note that's deliberately deferred to
-    a future CortexWard-native export format. 100%-covered, including a genuine end-to-end CLI
-    invocation against the real local Ollama server — skipped when none is reachable.
+    opt-in, never a silent default. 100%-covered, including a genuine end-to-end CLI invocation
+    against the real local Ollama server — skipped when none is reachable.
+  - ✅ **`ward scan --format`** selects the `ReporterPort` to render via the plugin registry
+    (`registry_for(PluginGroup.REPORTERS)`, the same discovery pattern `default_scanners()` uses)
+    instead of a hardcoded `SarifReporter()` — `sarif` (default) or `cortexward-json`, and any
+    future reporter is selectable with zero CLI code changes. This closes the gap the
+    `--llm-provider` bullet above left open: SARIF's `properties.state` reflects the richer
+    verification outcome, but the underlying evidence list needs `--format cortexward-json` to
+    actually be visible. 100%-covered, including an unknown-format rejection test.
 - ⏳ REST API (FastAPI), GitHub App / Action, and a VS Code extension.
 
 ## Phase 9 — Benchmarks & evaluation ⏳

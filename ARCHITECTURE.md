@@ -195,12 +195,16 @@ that share a CWE at the same file+line into one `Finding` with multiple `Evidenc
 same real bug reported by several tools becomes one finding, not several. CWE is the only
 cross-tool identity signal used; a finding with no CWE never merges with anything.
 
-`cortexward-reporters` (depends on `cortexward-core`) ships the first `ReporterPort` adapter:
+`cortexward-reporters` (depends on `cortexward-core`) ships two `ReporterPort` adapters.
 `SarifReporter` renders `Finding`s into a SARIF 2.1.0 document — one `run`, one `tool.driver`
 (CortexWard itself, not the individual scanners that fed the findings — those show up per-result
 in `properties.producers`), one deduplicated rule per distinct `rule_id`, `Severity` mapped to
 SARIF's `error`/`warning`/`note` levels. Still export-only, per ADR-0003: `Finding` stays the
-richer internal model. A Semgrep adapter is what's left of Phase 3.
+richer internal model. `JsonReporter` (`format_id = "cortexward-json"`) is the complement: a
+faithful `Finding.model_dump(mode="json")` passthrough carrying every `Evidence` item SARIF's
+single-message shape can't express — the place agent-verified findings' reachability/LLM
+evidence actually becomes visible (`ward scan --format cortexward-json`). A Semgrep adapter is
+what's left of Phase 3.
 
 ### 4.3.5 Evaluation harness (Phase 3.5) — *in progress*
 
@@ -316,8 +320,10 @@ push for reasons that aren't real vulnerabilities.
 reachability evidence instead of raw scanner output — with no LLM flags given, behavior is
 unchanged. `--reachability`/`--no-reachability` toggles the `build_code_graphs()` step. This is
 the first delivery-surface wiring for the whole agent framework built in §4.4; previously
-`AgentOrchestrator` was reachable only from tests. The REST API, GitHub App/Action, and VS Code
-extension are the rest of Phase 8.
+`AgentOrchestrator` was reachable only from tests. `--format` picks the `ReporterPort` to render
+via the plugin registry (`sarif` default, or `cortexward-json` to actually see the evidence the
+`--llm-provider` pipeline attaches — SARIF's `properties.state` reflects the outcome but not the
+evidence itself). The REST API, GitHub App/Action, and VS Code extension are the rest of Phase 8.
 
 ## 5. Cross-cutting concerns
 

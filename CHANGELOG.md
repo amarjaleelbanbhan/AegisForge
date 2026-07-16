@@ -48,6 +48,12 @@ All notable changes to CortexWard are documented here. The format is based on
     missing/malformed config file) plus a genuine end-to-end CLI invocation against a real local
     Ollama server and a real Bandit finding — skipped when no local Ollama server is reachable,
     matching the same `TestLiveOllama`-style pattern used throughout this codebase.
+  - **`ward scan --format`**: selects the `ReporterPort` to render via the plugin registry
+    (`registry_for(PluginGroup.REPORTERS)`, the same discovery pattern `default_scanners()`
+    already used for scanners) instead of a hardcoded `SarifReporter()` — `sarif` (default) or
+    `cortexward-json` (see the `cortexward-reporters` entry below), and any future reporter is
+    selectable with zero CLI code changes. An unknown `--format` value raises `typer.BadParameter`
+    via the registry's own `PluginNotFoundError`, listing what's actually registered. 100%-covered.
 - **Phase 4 (in progress) — Agent framework: LLM abstraction.**
   - New workspace package `cortexward-llm`, depending on `cortexward-core`.
   - **`OllamaAdapter`** (`cortexward.llm.ollama_adapter.OllamaAdapter`): implements `LLMPort`
@@ -236,6 +242,18 @@ All notable changes to CortexWard are documented here. The format is based on
     richer internal model SARIF's single-message `result` shape can't fully express. Registered
     under the `cortexward.reporters` entry-point group; a new "Reporters do not depend on other
     adapters or interfaces" import-linter contract mirrors the CPG/scanners ones.
+  - **CortexWard-native JSON export** — `JsonReporter` (`cortexward.reporters.json_reporter.
+    JsonReporter`, `format_id = "cortexward-json"`), the "future work" `SarifReporter`'s own
+    module docstring flagged for the full evidence trail SARIF can't carry. Delegates to
+    `Finding.model_dump(mode="json")` rather than a hand-maintained field mapping — `Finding`
+    (and everything it nests: `Evidence`, `Provenance`, `SourceLocation`) is already a pydantic
+    model, so every `Evidence` item (an LLM assessment's reasoning text, a reachability proof's
+    summary, the verification rung, ...) survives intact instead of being narrowed to just
+    `state`, and stays automatically in sync with the domain model as it evolves rather than
+    silently drifting the way a hand-rolled mapping would. Registered under `cortexward.reporters`
+    alongside `sarif`; selectable from `ward scan --format cortexward-json` (see the CLI entry
+    above). 100%-covered, including tests confirming evidence that would be dropped by
+    `SarifReporter` survives here.
   - **Dependency-vulnerability adapter** (`cortexward.scanners.osv_scanner.OsvScanner`): queries
     the public OSV.dev API for known vulnerabilities in *exactly-pinned* dependencies (`==X.Y.Z`
     in `requirements*.txt` or a PEP 621 `dependencies` entry). Range constraints are skipped, not

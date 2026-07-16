@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import typer
 
@@ -34,8 +34,9 @@ from cortexward.agents import AgentOrchestrator, build_code_graphs, default_agen
 from cortexward.domain import Severity
 from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, build_llm, load_llm_config
 from cortexward.orchestrator import SequentialOrchestrator, default_scanners
-from cortexward.ports import AnalysisRequest, OrchestratorPort
-from cortexward.reporters import SarifReporter
+from cortexward.plugins.groups import PluginGroup
+from cortexward.plugins.registry import PluginNotFoundError, registry_for
+from cortexward.ports import AnalysisRequest, OrchestratorPort, ReporterPort
 
 app = typer.Typer(
     name="ward",
@@ -113,6 +114,14 @@ def _resolve_llm_config(
     )
 
 
+def _resolve_reporter(format_id: str) -> ReporterPort:
+    """Loads the `ReporterPort` registered under `format_id` (e.g. `"sarif"`)."""
+    try:
+        return cast("ReporterPort", registry_for(PluginGroup.REPORTERS).create(format_id))
+    except PluginNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+
 def _build_orchestrator(
     *,
     llm_config: LLMProviderConfig | None,
@@ -137,10 +146,18 @@ def scan(
     ] = Path("."),
     output: Annotated[
         Path | None,
-        typer.Option(
-            "--output", "-o", help="Write the SARIF report to this file instead of stdout."
-        ),
+        typer.Option("--output", "-o", help="Write the report to this file instead of stdout."),
     ] = None,
+    report_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            help=(
+                "Report format to render: 'sarif' (default) or 'cortexward-json' "
+                "(the full finding, including verification evidence, that SARIF can't express)."
+            ),
+        ),
+    ] = "sarif",
     language: Annotated[
         list[str],
         typer.Option("--language", "-l", help="Restrict scanning to these languages (repeatable)."),
@@ -198,8 +215,9 @@ def scan(
         ),
     ] = True,
 ) -> None:
-    """Scan PATH with every registered scanner and report findings as SARIF."""
+    """Scan PATH with every registered scanner and report findings."""
     threshold = _severity_threshold(fail_on)
+    reporter = _resolve_reporter(report_format)
     resolved_llm_config = _resolve_llm_config(
         llm_config=llm_config,
         llm_provider=llm_provider,
@@ -219,7 +237,7 @@ def scan(
     request = AnalysisRequest(root=resolved_root, languages=tuple(language))
     result = orchestrator.run(request)
 
-    artifact = SarifReporter().render(result.findings)
+    artifact = reporter.render(result.findings)
     if output is not None:
         output.write_bytes(artifact.content)
         typer.echo(f"Wrote {len(result.findings)} finding(s) to {output}", err=True)

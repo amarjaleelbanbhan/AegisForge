@@ -122,6 +122,51 @@ class TestScanCommand:
         assert result.exit_code == 0
 
 
+class TestReportFormat:
+    def test_default_format_is_sarif(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--fail-on", "none"])
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        assert document["version"] == "2.1.0"
+
+    def test_cortexward_json_format_renders_the_full_finding(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--format", "cortexward-json", "--fail-on", "none"]
+        )
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        assert "cortexward_version" in document
+        assert len(document["findings"]) >= 1
+        assert "evidence" in document["findings"][0]
+
+    def test_cortexward_json_format_writes_to_an_output_file(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        output_path = tmp_path / "out.json"
+        result = runner.invoke(
+            app,
+            [
+                "scan",
+                str(tmp_path),
+                "--format",
+                "cortexward-json",
+                "--output",
+                str(output_path),
+                "--fail-on",
+                "none",
+            ],
+        )
+        assert result.exit_code == 0
+        document = json.loads(output_path.read_text())
+        assert "findings" in document
+
+    def test_unknown_format_is_rejected(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--format", "not-a-real-format"])
+        assert result.exit_code != 0
+
+
 class TestLlmVerification:
     def test_no_llm_flags_behaves_exactly_as_before(self, tmp_path: Path) -> None:
         _write_vulnerable_file(tmp_path)
