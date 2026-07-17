@@ -10,10 +10,13 @@ Three tiers per MPS §15:
    exemplars, shared across every repository/run.
 
 `RepositoryMemory` and `GlobalKnowledge` are `Protocol`s so a real
-deployment can back them with `StoragePort` (SQLite/Postgres) without this
-package depending on a database driver; the in-memory reference
-implementations here are what every agent/test in this package exercises
-against by default.
+deployment can back them with a persistent store without any *caller*
+depending on a database driver; `InMemoryRepositoryMemory` is what every
+agent/test in this package exercises against by default,
+`SqliteRepositoryMemory` is the persistent reference implementation
+(stdlib `sqlite3` only — `RepositoryMemory`'s protocol is small and
+self-contained enough not to need the broader, still-undesigned
+`StoragePort` event-sourcing machinery just to persist a suppression list).
 
 Memory only *informs* prompts via retrieval — it never updates model
 weights and never bypasses the Verification Ladder (MPS §15).
@@ -27,7 +30,9 @@ needing to depend on the whole agent framework to compute one.
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from cortexward.domain import fingerprint_for
@@ -55,9 +60,9 @@ class RepositoryMemory(Protocol):
 class InMemoryRepositoryMemory:
     """A process-local reference `RepositoryMemory` — lost when the process exits.
 
-    A real deployment persists this via `StoragePort` instead; this is what
-    lets a single orchestrated run (and every test in this package) use
-    repository memory without a database.
+    `SqliteRepositoryMemory` below persists across restarts; this one is
+    what lets a single orchestrated run (and most tests in this package)
+    use repository memory without a database.
     """
 
     def __init__(self) -> None:
@@ -74,6 +79,63 @@ class InMemoryRepositoryMemory:
             SuppressionRecord(fingerprint=fp, reason=reason)
             for fp, reason in self._suppressions.items()
         )
+
+
+class SqliteRepositoryMemory:
+    """A `RepositoryMemory` persisted to a local SQLite database.
+
+    `StoragePort` (MPS §17.1, ADR-0008) is the general event-sourced
+    finding log; its `FindingEvent` model has no field for a finding's own
+    core data (rule_id, locations, ...), so a real adapter for it needs a
+    port-level design decision this project hasn't made yet. Repository
+    memory has no such gap — `RepositoryMemory`'s three-method protocol is
+    fully self-contained — so this closes the "lost when the process
+    exits" limitation `InMemoryRepositoryMemory` documents, without
+    needing to wait on that broader decision.
+
+    Uses stdlib `sqlite3` only; no new dependency. Not safe to share across
+    threads (matching `InMemoryRepositoryMemory`'s own single-threaded
+    assumption — sqlite3 connections aren't thread-safe by default either).
+    """
+
+    def __init__(self, database: str | Path = ":memory:") -> None:
+        self._connection = sqlite3.connect(str(database))
+        self._connection.execute(
+            "CREATE TABLE IF NOT EXISTS suppressions ("
+            "fingerprint TEXT PRIMARY KEY, reason TEXT NOT NULL)"
+        )
+        self._connection.commit()
+
+    def record_suppression(self, fingerprint: str, reason: str) -> None:
+        self._connection.execute(
+            "INSERT INTO suppressions (fingerprint, reason) VALUES (?, ?) "
+            "ON CONFLICT(fingerprint) DO UPDATE SET reason = excluded.reason",
+            (fingerprint, reason),
+        )
+        self._connection.commit()
+
+    def is_suppressed(self, fingerprint: str) -> bool:
+        cursor = self._connection.execute(
+            "SELECT 1 FROM suppressions WHERE fingerprint = ?", (fingerprint,)
+        )
+        return cursor.fetchone() is not None
+
+    def suppressions(self) -> tuple[SuppressionRecord, ...]:
+        cursor = self._connection.execute(
+            "SELECT fingerprint, reason FROM suppressions ORDER BY fingerprint"
+        )
+        return tuple(
+            SuppressionRecord(fingerprint=row[0], reason=row[1]) for row in cursor.fetchall()
+        )
+
+    def close(self) -> None:
+        self._connection.close()
+
+    def __enter__(self) -> SqliteRepositoryMemory:
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.close()
 
 
 @runtime_checkable
@@ -110,6 +172,7 @@ __all__ = [
     "GlobalKnowledge",
     "InMemoryRepositoryMemory",
     "RepositoryMemory",
+    "SqliteRepositoryMemory",
     "StaticGlobalKnowledge",
     "SuppressionRecord",
     "fingerprint_for",

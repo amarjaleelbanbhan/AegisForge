@@ -241,6 +241,15 @@ cost-aware model router.
   `if __name__ == "__main__":` guard (a helper-function-wrapped call was tried first and found
   provably unreachable with the current CFG builder — documented in the test itself, not silently
   worked around).
+- ✅ **`SqliteRepositoryMemory`**: a persistent `RepositoryMemory` (MPS §15 tier 2), closing
+  `InMemoryRepositoryMemory`'s documented "lost when the process exits" limitation. Uses stdlib
+  `sqlite3` only — `RepositoryMemory`'s three-method protocol is small and fully self-contained,
+  unlike `StoragePort`'s general event-sourced finding log (`FindingEvent` has no field for a
+  finding's own core data, so a real adapter for that needs a port-level design decision this
+  project hasn't made yet), so this closes a real gap without waiting on the broader one. Supports
+  both `:memory:` (default) and a file path for genuine cross-process persistence; a context
+  manager. 100%-covered, including a real round-trip through two separate connections to the same
+  file confirming persistence survives a close/reopen.
 
 ## Phase 5 — Threat & architecture reasoning 🚧
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis

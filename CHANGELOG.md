@@ -68,6 +68,17 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **`SqliteRepositoryMemory`** (`cortexward-agents`): a persistent `RepositoryMemory`, closing
+  `InMemoryRepositoryMemory`'s documented "lost when the process exits" limitation. Uses stdlib
+  `sqlite3` only. `RepositoryMemory`'s three-method protocol is small and fully self-contained,
+  unlike `StoragePort`'s general event-sourced finding log (whose `FindingEvent` model has no
+  field for a finding's own core data — a real adapter for *that* needs a port-level design
+  decision this project hasn't made yet) — so this closes a real gap without waiting on that
+  broader decision. Supports both `:memory:` (the default, matching `InMemoryRepositoryMemory`'s
+  ephemeral-by-default ergonomics) and a file path for genuine cross-process persistence; a
+  context manager (`with SqliteRepositoryMemory(...) as memory:`). 100%-covered, including a
+  real round-trip through two separate connections to the same file confirming persistence
+  actually survives a close/reopen, not just a single in-process session.
 - **`GitHubVCSAdapter`** (`cortexward-vcs`, new workspace package): the first `VCSPort`
   implementation — the port itself was already defined (Phase 1's port catalog work), but no
   adapter existed. Calls GitHub's REST API v3 via `urllib.request` (no `PyGithub` dependency);

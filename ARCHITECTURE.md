@@ -295,6 +295,15 @@ evidence this framework doesn't produce yet. Still open for Phase 4: a LangGraph
 implementation, not the only one MPS §13 anticipates), and the taint/PoC/differential-test
 evidence needed to actually reach `VERIFIED`.
 
+`RepositoryMemory` (MPS §15 tier 2) gained a persistent implementation,
+`SqliteRepositoryMemory`, alongside the process-local `InMemoryRepositoryMemory` every
+agent/test defaults to — stdlib `sqlite3` only, no new dependency. `RepositoryMemory`'s
+three-method protocol (`record_suppression`/`is_suppressed`/`suppressions`) is small and fully
+self-contained, unlike `StoragePort`'s general event-sourced finding log (§4.1b) — whose
+`FindingEvent` model has no field for a finding's own core data, so a real adapter for *that*
+needs a port-level design decision this project hasn't made yet — so this closes the "lost when
+the process exits" limitation without waiting on that broader, still-undesigned decision.
+
 ### 4.4b Threat & architecture reasoning (Phase 5) — *in progress*
 
 STRIDE threat modeling grounded on scanner findings, not a new detection capability: `Threat`
