@@ -24,6 +24,12 @@ from cortexward.domain.models import (
     Provenance,
     SourceLocation,
 )
+from cortexward.domain.threat_model import (
+    StrideCategory,
+    Threat,
+    ThreatModel,
+    stride_categories_for,
+)
 from cortexward.domain.value_objects import Assessment
 from cortexward.domain.verification import (
     apply_assessment,
@@ -41,10 +47,14 @@ __all__ = [
     "Provenance",
     "Severity",
     "SourceLocation",
+    "StrideCategory",
+    "Threat",
+    "ThreatModel",
     "VerificationRung",
     "VexStatus",
     "apply_assessment",
     "assess",
     "calibrate_confidence",
     "fingerprint_for",
+    "stride_categories_for",
 ]
