@@ -25,6 +25,7 @@ The remaining Phase 8 surfaces (GitHub App, VS Code extension) are unbuilt.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Annotated, cast
@@ -35,7 +36,7 @@ import uvicorn
 from cortexward.cli.baseline import filter_baseline, load_baseline, write_baseline
 from cortexward.domain import Severity
 from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, load_llm_config
-from cortexward.orchestrator import build_pipeline
+from cortexward.orchestrator import build_pipeline, build_threat_model_for
 from cortexward.plugins.groups import PluginGroup
 from cortexward.plugins.registry import PluginNotFoundError, registry_for
 from cortexward.ports import AnalysisRequest, ReporterPort
@@ -282,6 +283,50 @@ def generate_baseline(
 
     write_baseline(output, result.findings, reason=reason)
     typer.echo(f"Wrote {len(result.findings)} finding(s) to baseline {output}", err=True)
+
+
+@app.command("threat-model")
+def threat_model(
+    path: Annotated[
+        Path,
+        typer.Argument(help="Root directory to scan.", exists=True, file_okay=False),
+    ] = Path("."),
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output", "-o", help="Write the threat model to this file instead of stdout."
+        ),
+    ] = None,
+    language: Annotated[
+        list[str],
+        typer.Option("--language", "-l", help="Restrict scanning to these languages (repeatable)."),
+    ] = [],  # noqa: B006 - typer treats this as an immutable per-invocation default
+    reachability: Annotated[
+        bool,
+        typer.Option(
+            "--reachability/--no-reachability",
+            help="Attach CPG-grounded entry-point reachability to each threat.",
+        ),
+    ] = True,
+) -> None:
+    """Build a STRIDE threat model from PATH's scanner findings (MPS Phase 5).
+
+    Deliberately scanner-only, with no LLM verification: STRIDE
+    classification and reachability are both deterministic (see
+    `cortexward.agents.threat_model`), so this never needs an LLM backend.
+    """
+    resolved_root = path.resolve()
+    model = build_threat_model_for(
+        root=resolved_root, languages=tuple(language), reachability=reachability
+    )
+    content = (
+        json.dumps(model.model_dump(mode="json"), indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    )
+    if output is not None:
+        output.write_bytes(content)
+        typer.echo(f"Wrote {len(model.threats)} threat(s) to {output}", err=True)
+    else:
+        sys.stdout.buffer.write(content)
 
 
 @app.command()

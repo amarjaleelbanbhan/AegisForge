@@ -395,6 +395,68 @@ class TestBaselineCommand:
         assert document["suppressions"] == []
 
 
+class TestThreatModelCommand:
+    def test_prints_a_stride_categorized_threat_model_to_stdout(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        result = runner.invoke(app, ["threat-model", str(tmp_path)])
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        assert len(document["threats"]) >= 1
+        assert document["threats"][0]["categories"]
+
+    def test_a_clean_directory_yields_no_threats(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        result = runner.invoke(app, ["threat-model", str(tmp_path)])
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        assert document["threats"] == []
+
+    def test_writes_to_an_output_file_when_given(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        output_path = tmp_path / "threats.json"
+        result = runner.invoke(app, ["threat-model", str(tmp_path), "--output", str(output_path)])
+        assert result.exit_code == 0
+        assert output_path.exists()
+        document = json.loads(output_path.read_text())
+        assert len(document["threats"]) >= 1
+
+    def test_no_reachability_still_produces_threats(self, tmp_path: Path) -> None:
+        _write_vulnerable_file(tmp_path)
+        result = runner.invoke(app, ["threat-model", str(tmp_path), "--no-reachability"])
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        assert document["threats"]
+        assert all(t["reachable_from_entrypoint"] is False for t in document["threats"])
+
+    def test_a_directly_reachable_call_is_marked_exposed(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(
+            'import subprocess\n\nif __name__ == "__main__":\n'
+            '    subprocess.call("echo hi", shell=True)\n',
+            encoding="utf-8",
+        )
+        result = runner.invoke(app, ["threat-model", str(tmp_path)])
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        assert any(t["reachable_from_entrypoint"] is True for t in document["threats"])
+
+    def test_language_filter_is_accepted(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        result = runner.invoke(app, ["threat-model", str(tmp_path), "--language", "python"])
+        assert result.exit_code == 0
+
+    def test_default_path_is_the_current_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_clean_file(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["threat-model"])
+        assert result.exit_code == 0
+
+    def test_nonexistent_path_is_rejected(self) -> None:
+        result = runner.invoke(app, ["threat-model", "/definitely/does/not/exist"])
+        assert result.exit_code != 0
+
+
 class TestServeCommand:
     """`serve` delegates to `uvicorn.run` -- monkeypatched here so tests don't
     actually bind a port and block; the wiring itself (which module:attr
