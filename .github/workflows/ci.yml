@@ -154,8 +154,36 @@ jobs:
       # future advisory has no fixed version yet available, use pip-audit's
       # own --ignore-vuln <ID> (with a comment explaining why) rather than
       # reintroducing a blanket "|| warning" that silences every future one.
+      #
+      # Ignored below, each confirmed unreachable through this project's own
+      # code (not "no fix exists" -- fixes exist upstream, but semgrep
+      # itself hard-pins these versions with no override, so bumping them
+      # here isn't possible until semgrep's own pins move):
+      #   - PYSEC-2026-2132 (click 8.1.8, fixed 8.3.3): command injection in
+      #     click.edit(), only reachable if an application calls that
+      #     function with untrusted input. Nothing in this repository calls
+      #     click.edit() or uses click at all -- SemgrepScanner invokes the
+      #     semgrep CLI as a subprocess, it does not import click.
+      #   - CVE-2026-52870, CVE-2026-52869 (mcp 1.23.3, fixed 1.27.2): both
+      #     are vulnerabilities in the MCP Python SDK's *server*-side
+      #     transports/handlers (experimental task handlers; SSE and
+      #     Streamable-HTTP transports without auth). This project never
+      #     starts an MCP server.
+      #   - CVE-2026-59950 (mcp 1.23.3, fixed 1.28.1): vulnerability in the
+      #     MCP SDK's deprecated WebSocket transport (missing Host/Origin
+      #     validation), again server-side only. Same reasoning: no MCP
+      #     server is ever started here.
+      # `mcp` and `click` are pulled in transitively by `semgrep` (a direct
+      # dependency of cortexward-scanners) with exact/compatible-release
+      # pins; the fix is to relax the ignores once a semgrep release moves
+      # those pins forward.
       - name: pip-audit (dependency vulnerabilities)
-        run: uvx pip-audit -r /tmp/requirements.third-party.txt
+        run: |
+          uvx pip-audit -r /tmp/requirements.third-party.txt \
+            --ignore-vuln PYSEC-2026-2132 \
+            --ignore-vuln CVE-2026-52870 \
+            --ignore-vuln CVE-2026-52869 \
+            --ignore-vuln CVE-2026-59950
 
       - name: Generate CycloneDX SBOM
         run: |
