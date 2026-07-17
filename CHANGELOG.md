@@ -14,6 +14,27 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 5 (in progress) — Threat & architecture reasoning: STRIDE threat modeling.** Grounded
+  on existing scanner findings, not a new detection capability.
+  - `Threat`/`ThreatModel` (`cortexward.domain.threat_model`) reclassify a `Finding` under
+    STRIDE via `stride_categories_for(cwe)`, a CWE→STRIDE lookup table covering every CWE this
+    project's own scanners can actually produce plus common real-world-CVE CWEs. A CWE absent
+    from the table yields an empty category set — never a guessed one.
+  - `Threat.reachable_from_entrypoint` (attack-surface mapping) reuses the exact control-flow
+    reachability query `VerifierAgent` already performs for `REACHABILITY_PROOF` evidence,
+    extracted into `cortexward.agents.reachability.is_reachable_from_entrypoint()` so both share
+    one implementation; `VerifierAgent` now delegates to it with no behavior change (full
+    existing test suite passes unmodified).
+  - `build_threat_model()` (`cortexward.agents.threat_model`) is deliberately not an `Agent` —
+    STRIDE classification and reachability are both deterministic, so it needs no LLM.
+    `build_threat_model_for()` (`cortexward.orchestrator.threat_model`) mirrors `build_pipeline`'s
+    role (scan → optionally build a `CodeGraph` → classify), keeping `cortexward-cli` decoupled
+    from `cortexward-agents` directly, same as `build_pipeline` already does.
+  - `ward threat-model <path>` wires it into the CLI: JSON to stdout or `--output FILE`,
+    `--language`, `--reachability/--no-reachability`. No LLM flags, matching `ward baseline`.
+  - 100%-covered, including real end-to-end coverage: a genuine command-injection fixture, the
+    real `BanditScanner`, and a real CPG proving reachability from an
+    `if __name__ == "__main__":` guard.
 - **Phase 8 (in progress) — Delivery surfaces: the `ward` CLI**, pulled forward from strict phase
   order to close out `ci.yml`'s own long-standing dogfood-job note ("this job is replaced once
   cortexward-scanners exists, at which point `ward scan .` runs here") now that scanners and the

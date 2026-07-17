@@ -242,9 +242,44 @@ cost-aware model router.
   provably unreachable with the current CFG builder — documented in the test itself, not silently
   worked around).
 
-## Phase 5 — Threat & architecture reasoning ⏳
+## Phase 5 — Threat & architecture reasoning 🚧
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis
 grounded on the CPG.
+- ✅ **STRIDE threat modeling**, grounded on existing scanner findings rather than a new detection
+  capability: `Threat`/`ThreatModel` (`cortexward.domain.threat_model`) reclassify a `Finding`
+  under Microsoft's STRIDE taxonomy via `stride_categories_for(cwe)`, a CWE→STRIDE lookup table
+  covering every CWE this project's own scanners (Bandit's ~23 producible CWEs, detect-secrets'
+  798) can actually produce, plus a handful of CWEs common in real-world CVEs an OSV-sourced
+  finding could carry. STRIDE and CWE are orthogonal, uncanonical classification schemes — a CWE
+  absent from the table yields an empty category set rather than a guessed one, mirroring
+  `StaticGlobalKnowledge.cwe_summary()`'s "no entry means no claim" convention. A finding with no
+  resolvable STRIDE category contributes no `Threat` at all.
+  - **Attack-surface mapping**: `Threat.reachable_from_entrypoint` reuses the exact control-flow
+    reachability query `VerifierAgent`'s `REACHABILITY_PROOF` evidence already performs — is this
+    finding's location reachable from a known entry point? That query was extracted into
+    `cortexward.agents.reachability.is_reachable_from_entrypoint()` so both consumers share one
+    implementation instead of duplicating it; `VerifierAgent` now delegates to it, with no
+    behavior change (its full test suite passes unmodified). Same one-directional honesty as
+    everywhere else in this framework: `False` means "not proven reachable by this run's
+    heuristics," never "proven unreachable."
+  - **`build_threat_model()`** (`cortexward.agents.threat_model`) is deliberately not an `Agent`:
+    STRIDE classification and reachability are both deterministic, so it needs no LLM and stays
+    usable from a plain scanner pipeline, the same way `cortexward.cli.baseline` does.
+  - **`build_threat_model_for()`** (`cortexward.orchestrator.threat_model`) mirrors
+    `build_pipeline`'s role: scans a root, optionally builds a `CodeGraph`, and classifies the
+    result — the one place `cortexward-orchestrator` depends on `cortexward.agents.threat_model`,
+    keeping the CLI decoupled from `cortexward-agents` directly (the same separation
+    `build_pipeline` already established).
+  - **`ward threat-model <path>`** wires it into the CLI: JSON to stdout or `--output FILE`,
+    `--language` filtering, `--reachability/--no-reachability`. No LLM flags, matching `ward
+    baseline`'s design.
+  - 100%-covered throughout, including real end-to-end tests: a genuine command-injection fixture
+    scanned by the real `BanditScanner`, with a real CPG proving reachability from an
+    `if __name__ == "__main__":` guard — no mocked scanner or graph.
+- ⏳ Trust-boundary modeling (an explicit representation of the untrusted/trusted-control-plane
+  split MPS §22.1 describes for CortexWard's own architecture, generalized to an analyzed
+  target's architecture) and business-logic analysis remain unbuilt — both need design work this
+  session didn't attempt, not just implementation.
 
 ## Phase 6 — Exploit verification ⏳
 Sandbox (Docker → gVisor/Firecracker), the full ladder end to end, false-positive reduction,

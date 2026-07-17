@@ -292,6 +292,38 @@ evidence this framework doesn't produce yet. Still open for Phase 4: a LangGraph
 implementation, not the only one MPS §13 anticipates), and the taint/PoC/differential-test
 evidence needed to actually reach `VERIFIED`.
 
+### 4.4b Threat & architecture reasoning (Phase 5) — *in progress*
+
+STRIDE threat modeling grounded on scanner findings, not a new detection capability: `Threat`
+reclassifies an existing `Finding` under Microsoft's STRIDE taxonomy and adds one new signal —
+whether its location is reachable from a known entry point.
+
+`cortexward.domain.threat_model` (pure, dependency-free like the rest of `cortexward.domain`)
+defines `StrideCategory`, `Threat`, `ThreatModel`, and `stride_categories_for(cwe)` — a CWE→STRIDE
+lookup table covering every CWE Bandit/detect-secrets can actually produce plus a handful of
+common real-world-CVE CWEs an OSV-sourced finding could carry. STRIDE and CWE are orthogonal,
+uncanonical classification schemes, so a CWE absent from the table yields an empty category set
+rather than a guessed one — the same "no entry means no claim" convention
+`StaticGlobalKnowledge.cwe_summary()` already uses. A finding with no resolvable STRIDE category
+contributes no `Threat`.
+
+The attack-surface signal (`Threat.reachable_from_entrypoint`) needs a `CodeGraph` query, so it's
+computed outside domain: `cortexward.agents.reachability.is_reachable_from_entrypoint()`
+is the exact control-flow reachability check `VerifierAgent`'s `REACHABILITY_PROOF` evidence
+already performed, extracted so both consumers share one implementation — `VerifierAgent` now
+delegates to it, with no behavior change. Same one-directional honesty as everywhere else in this
+framework: `False` means "not proven reachable," never "proven unreachable."
+
+`build_threat_model()` (`cortexward.agents.threat_model`) is deliberately **not** an `Agent`:
+STRIDE classification and reachability are both deterministic, so a threat model needs no LLM —
+usable from a plain scanner pipeline the same way `cortexward.cli.baseline` is.
+`build_threat_model_for()` (`cortexward.orchestrator.threat_model`) mirrors `build_pipeline`'s
+role (scan → optionally build a `CodeGraph` → classify) so `ward threat-model <path>` (§4.7) can
+offer this without `cortexward-cli` depending on `cortexward-agents` directly — the same
+separation `build_pipeline` already established for the agent-driven scan pipeline. Trust-boundary
+modeling and business-logic analysis remain unbuilt; both need design work, not just
+implementation.
+
 ### 4.5 Verification & sandbox (Phase 6) — *planned*
 
 Progressive isolation: Docker + seccomp/AppArmor by default, optional gVisor/Firecracker for
@@ -374,7 +406,9 @@ documented in the module docstring, not silently missing. `ward serve` wires thi
 (`uvicorn.run("cortexward.server.app:app", ...)`) — `cortexward-cli` takes `cortexward-server`
 and `uvicorn` as hard dependencies so the command works out of the box, verified against a real
 running process (not just tests): started the server, `POST`ed a real scan over HTTP, polled it
-to completion, stopped the exact process by PID. The GitHub App/Action and VS Code extension are
+to completion, stopped the exact process by PID. `ward threat-model <path>` (§4.4b) is the third
+CLI surface reusing this "scan → LLM-free analysis" shape (JSON to stdout or `--output FILE`,
+`--language`, `--reachability/--no-reachability`). The GitHub App/Action and VS Code extension are
 what's left of Phase 8.
 
 ## 5. Cross-cutting concerns
