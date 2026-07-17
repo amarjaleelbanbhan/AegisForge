@@ -408,7 +408,42 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   another scans a deliberately vulnerable fixture and asserts exit 1 plus a produced SARIF file —
   a real invocation of `setup-uv`, `uv sync`, `ward scan`, and `upload-sarif`, not a unit test
   double.
-- ⏳ GitHub App (bot-driven PR review/comments) and a VS Code extension remain unbuilt.
+- ✅ **VS Code extension** (`integrations/vscode/`, per MPS §25's target repository structure —
+  a new, first-of-its-kind TypeScript/Node subproject in this otherwise-Python monorepo).
+  **CortexWard: Scan Workspace** shells out to `ward scan --fail-on none --format sarif` (no LLM,
+  matching `ward baseline`/`ward threat-model`'s own design) and publishes results as real
+  `vscode.Diagnostic`s (squiggles + Problems panel), grouped by file, severity mapped from
+  SARIF's `error`/`warning`/`note` levels. **CortexWard: Clear Findings** clears them.
+  `cortexward.wardPath` (default `"ward"`, resolved from `PATH`) is the only setting — this
+  extension shells out to an already-installed `ward`, it doesn't bundle or install CortexWard
+  itself.
+  - SARIF parsing (`src/sarif.ts`) and the subprocess wrapper (`src/scan.ts`) are kept
+    VS-Code-API-independent on purpose, so the core logic is unit-testable without the full
+    Extension Host; `src/extension.ts` is the only file that touches `vscode.Diagnostic`/
+    `vscode.Range`. Every field of the untrusted, externally-produced SARIF document is accessed
+    defensively (never a thrown exception on malformed input), matching this project's own
+    scanner adapters' treatment of untrusted tool output.
+  - 18 unit tests (pure logic: SARIF parsing, 1-indexed→0-indexed conversion, severity mapping,
+    malformed-input handling, subprocess error handling) plus 4 integration tests running inside
+    a real, downloaded VS Code Extension Host (`@vscode/test-electron`) confirming the extension
+    actually activates, registers both commands, executes one, and exposes its configuration
+    schema — not simulated. Also manually verified end to end against the real `ward` binary
+    (not a fixture): a real subprocess scan of a real vulnerable file produced correctly parsed,
+    correctly 0-indexed, correctly grouped findings. Packaging into a distributable `.vsix` is
+    verified too (`npm run package`, via `@vscode/vsce`).
+  - Caught and fixed a real bug this verification surfaced: `package.json`'s `main` field pointed
+    at `./out/extension.js`, but `tsc`'s actual output (given `rootDir: "."`) is
+    `./out/src/extension.js` — the extension would have failed to activate for every real user
+    despite compiling and unit-testing cleanly. Found only because the integration test actually
+    launched a real Extension Host and tried to load it.
+  - Found and fixed a transitive dev-dependency vulnerability (`mocha` → `serialize-javascript`
+    <=7.0.4, RCE + DoS advisories) via an npm `overrides` entry pinning the patched version,
+    rather than downgrading mocha as `npm audit fix --force` suggested.
+  - New CI workflow (`.github/workflows/vscode-extension.yml`), path-filtered to
+    `integrations/vscode/**`: compiles, unit-tests, and integration-tests (via `xvfb-run` on
+    Linux, natively on Windows) on both `ubuntu-latest` and `windows-latest`, then verifies
+    packaging.
+- ⏳ A GitHub App (bot-driven PR review/comments) remains unbuilt.
 
 ## Phase 9 — Benchmarks & evaluation ⏳
 Datasets with contamination controls (post-cutoff + mutated splits), detection/verification/

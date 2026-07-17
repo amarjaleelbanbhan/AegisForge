@@ -68,6 +68,30 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 8 — VS Code extension** (`integrations/vscode/`), this monorepo's first TypeScript/
+  Node subproject. **CortexWard: Scan Workspace** runs `ward scan --fail-on none --format sarif`
+  (no LLM, matching `ward baseline`/`ward threat-model`) and publishes results as real
+  `vscode.Diagnostic`s grouped by file; **CortexWard: Clear Findings** clears them.
+  `cortexward.wardPath` is the only setting.
+  - SARIF parsing (`src/sarif.ts`) and the subprocess wrapper (`src/scan.ts`) are
+    VS-Code-API-independent, unit-testable without the Extension Host; every field is accessed
+    defensively since SARIF is untrusted, externally-produced input.
+  - 18 unit tests + 4 integration tests running inside a real, downloaded VS Code Extension Host
+    (`@vscode/test-electron`), plus a manual end-to-end run against the real `ward` binary
+    (not a fixture) confirming a genuine subprocess scan produces correctly parsed diagnostics.
+    Packaging into a `.vsix` verified via `@vscode/vsce`.
+  - Caught and fixed a real bug this verification surfaced: `package.json`'s `main` pointed at
+    `./out/extension.js`, but the actual compiled path is `./out/src/extension.js` — the
+    extension would have failed to activate for every real user despite compiling and
+    unit-testing cleanly. Only the integration test, which actually loads the extension inside a
+    real Extension Host, caught it.
+  - Found and fixed a transitive dev-dependency vulnerability (`mocha` → `serialize-javascript`,
+    RCE + DoS advisories) via an npm `overrides` entry, rather than downgrading mocha as `npm
+    audit fix --force` suggested.
+  - New CI workflow (`.github/workflows/vscode-extension.yml`, path-filtered to
+    `integrations/vscode/**`): compiles, unit-tests, and integration-tests (via `xvfb-run` on
+    Linux, natively on Windows) on both `ubuntu-latest` and `windows-latest`, then verifies
+    packaging.
 - **`actionlint` in CI.** Every `.github/workflows/*.yml` file (and `action.yml`) is now
   statically checked on every push/PR — catches the class of bug this session hand-verified
   manually throughout (unsafe `${{ inputs.* }}` interpolation directly into a shell script,

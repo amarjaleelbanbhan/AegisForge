@@ -1,0 +1,53 @@
+name: VS Code extension
+
+on:
+  push:
+    branches: [main]
+    paths: ["integrations/vscode/**", ".github/workflows/vscode-extension.yml"]
+  pull_request:
+    paths: ["integrations/vscode/**", ".github/workflows/vscode-extension.yml"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: integrations/vscode
+
+jobs:
+  build-and-test:
+    name: Build · Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: integrations/vscode/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile (type-check + build)
+        run: npm run compile
+
+      - name: Unit tests (no VS Code needed)
+        run: npm run test:unit
+
+      # @vscode/test-electron launches a real, Electron-based VS Code --
+      # headless Linux runners need a virtual display for that, which
+      # xvfb-run provides; Windows/macOS runners have a real one already.
+      - name: Integration tests (real VS Code Extension Host) — Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration
+
+      - name: Integration tests (real VS Code Extension Host) — non-Linux
+        if: runner.os != 'Linux'
+        run: npm run test:integration
+
+      - name: Package the extension (verifies a distributable .vsix builds)
+        run: npm run package

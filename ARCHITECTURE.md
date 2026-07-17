@@ -423,8 +423,27 @@ already applies to analyzed source everywhere else in this project. Results uplo
 (`.github/workflows/action-smoke-test.yml`, invoking `uses: ./` pinned to `github.sha` so a
 change to the action is validated before it reaches `main`): one job scans a known-clean package
 and asserts exit 0, another scans a deliberately vulnerable fixture and asserts exit 1 plus a
-produced SARIF file. The GitHub App (bot-driven PR review) and VS Code extension are what's left
-of Phase 8.
+produced SARIF file.
+
+`integrations/vscode/` (per MPS §25's target repository structure) is this monorepo's first
+TypeScript/Node subproject — a VS Code extension wrapping `ward scan` rather than a Python
+package. **CortexWard: Scan Workspace** shells out to `ward scan --fail-on none --format sarif`
+(no LLM, matching `ward baseline`/`ward threat-model`'s own scanner-only design) and publishes
+results as `vscode.Diagnostic`s grouped by file; **CortexWard: Clear Findings** clears them. The
+SARIF-parsing logic (`src/sarif.ts`) and the subprocess wrapper (`src/scan.ts`) are deliberately
+kept independent of the `vscode` module, so the core logic is unit-testable without a full
+Extension Host — `src/extension.ts` is the only file that constructs a real `vscode.Diagnostic`/
+`vscode.Range`. Every SARIF field is read defensively (a malformed document degrades to fewer
+findings, never a thrown exception), the same untrusted-external-input discipline the Python
+scanner adapters apply to their own tools' output. 18 unit tests plus 4 integration tests running
+inside a real, downloaded VS Code Extension Host (`@vscode/test-electron`) verify this — the
+integration tests caught a real bug unit tests and `tsc` alone couldn't (`package.json`'s `main`
+pointed at a path `tsc` never actually produced; the extension compiled and unit-tested cleanly
+but would have failed to activate for every real user). A path-filtered CI workflow
+(`.github/workflows/vscode-extension.yml`) compiles, tests (via `xvfb-run` on headless Linux
+runners), and packages the extension on every push touching `integrations/vscode/**`.
+
+The GitHub App (bot-driven PR review) is what's left of Phase 8.
 
 ## 5. Cross-cutting concerns
 

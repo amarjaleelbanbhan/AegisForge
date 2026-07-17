@@ -62,3 +62,14 @@ runs/
 *.pem
 *.key
 secrets/
+
+# Node.js / integrations/vscode
+node_modules/
+integrations/vscode/out/
+integrations/vscode/.vscode-test/
+*.vsix
+
+# actionlint's own downloaded binary (installed locally for pre-CI checks,
+# never checked in)
+/actionlint
+/actionlint.exe
