@@ -68,6 +68,11 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **`actionlint` in CI.** Every `.github/workflows/*.yml` file (and `action.yml`) is now
+  statically checked on every push/PR — catches the class of bug this session hand-verified
+  manually throughout (unsafe `${{ inputs.* }}` interpolation directly into a shell script,
+  wrong context references, invalid expressions) automatically instead. Verified locally against
+  this repo's own workflow files before adding the CI job: zero findings.
 - **Dependabot** (`.github/dependabot.yml`): weekly automated update PRs across every ecosystem
   this repo actually has — `uv` (`pyproject.toml`/`uv.lock`, GA in Dependabot since March 2025),
   `github-actions` (workflow action versions), `docker` (the root `Dockerfile`), and

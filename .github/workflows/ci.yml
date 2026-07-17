@@ -15,6 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  actionlint:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download actionlint
+        shell: bash
+        run: bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: actionlint
+        shell: bash
+        run: ./actionlint -color
+
   quality:
     name: Lint · Type · Test (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
