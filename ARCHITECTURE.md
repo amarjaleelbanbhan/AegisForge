@@ -408,8 +408,23 @@ and `uvicorn` as hard dependencies so the command works out of the box, verified
 running process (not just tests): started the server, `POST`ed a real scan over HTTP, polled it
 to completion, stopped the exact process by PID. `ward threat-model <path>` (§4.4b) is the third
 CLI surface reusing this "scan → LLM-free analysis" shape (JSON to stdout or `--output FILE`,
-`--language`, `--reachability/--no-reachability`). The GitHub App/Action and VS Code extension are
-what's left of Phase 8.
+`--language`, `--reachability/--no-reachability`).
+
+`action.yml` (repo root) is a composite GitHub Action wrapping `ward scan` for consumption by
+*other* repositories' CI. Since `cortexward-cli` isn't published to PyPI and its dependencies are
+workspace-local (not resolvable via a bare `pip install` from a git subdirectory URL), the action
+checks out CortexWard itself at a pinned ref (`cortexward-ref`, default `main`) into a side path
+and `uv sync`s it there, then runs `ward scan` against the *calling* repository's own checkout.
+Inputs are threaded through step `env:` variables rather than interpolated directly into the
+shell script — the standard defense against the well-known GitHub Actions shell-injection
+pitfall of trusting `${{ inputs.* }}` inline, and the same untrusted-input discipline ADR-0004
+already applies to analyzed source everywhere else in this project. Results upload via
+`github/codeql-action/upload-sarif`. Self-tested end to end on this repo's own CI
+(`.github/workflows/action-smoke-test.yml`, invoking `uses: ./` pinned to `github.sha` so a
+change to the action is validated before it reaches `main`): one job scans a known-clean package
+and asserts exit 0, another scans a deliberately vulnerable fixture and asserts exit 1 plus a
+produced SARIF file. The GitHub App (bot-driven PR review) and VS Code extension are what's left
+of Phase 8.
 
 ## 5. Cross-cutting concerns
 

@@ -109,6 +109,24 @@ uv run ward scan . --fail-on critical    # only exit non-zero on critical findin
 runs each one, correlates their findings by CWE + location into the domain `Finding` model, and
 renders the result as SARIF — real, working code, not a roadmap promise.
 
+### GitHub Action
+
+Run CortexWard on any repository's own CI and get results in GitHub's Security tab:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: amarjaleelbanbhan/CortexWard@main
+  with:
+    path: .                # what to scan (default: repo root)
+    fail-on: high           # none | low | medium | high | critical (default: high)
+    baseline: ""            # optional path to a `ward baseline` file
+    language: ""            # optional, e.g. "python"
+```
+
+Installs `ward` from this repository (pinned via `cortexward-ref`, defaulting to `main`) and
+uploads the SARIF report via `github/codeql-action/upload-sarif`. See
+[`action.yml`](action.yml).
+
 ## Quickstart (development)
 
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). This is a **uv workspace**

@@ -392,7 +392,23 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   running process, not just tests: started `ward serve`, `POST`ed a real scan request, polled it
   to `"completed"` over an actual HTTP connection, then stopped the exact process by its PID.
   100%-covered (the CLI test monkeypatches `uvicorn.run` itself so tests don't bind a port).
-- ⏳ GitHub App / Action and a VS Code extension.
+- ✅ **GitHub Action** (`action.yml`, repo root): a composite action wrapping `ward scan`. Checks
+  out this repository at a pinned ref (`cortexward-ref`, default `main`) into a side path,
+  `uv sync`s it, and runs `ward scan` against the *calling* repository's own checkout — no PyPI
+  publish needed, since `cortexward-cli`'s workspace-local dependencies (`cortexward-core`,
+  `-orchestrator`, `-reporters`, `-server`) aren't resolvable via a bare `pip install` from a git
+  subdirectory URL without the whole monorepo present. Inputs (`path`, `fail-on`, `baseline`,
+  `language`) are threaded through `env:` variables into the shell step, never interpolated
+  directly into the script string, to avoid the well-known GitHub Actions shell-injection pitfall
+  of trusting `${{ inputs.* }}` inline — the same untrusted-input discipline this project applies
+  to analyzed source everywhere else (ADR-0004). Results upload via
+  `github/codeql-action/upload-sarif`, appearing in the calling repo's Security tab.
+  Self-verified end to end on this repo's own CI (`.github/workflows/action-smoke-test.yml`,
+  `uses: ./` pinned to `github.sha`): one job scans a known-clean package and asserts exit 0,
+  another scans a deliberately vulnerable fixture and asserts exit 1 plus a produced SARIF file —
+  a real invocation of `setup-uv`, `uv sync`, `ward scan`, and `upload-sarif`, not a unit test
+  double.
+- ⏳ GitHub App (bot-driven PR review/comments) and a VS Code extension remain unbuilt.
 
 ## Phase 9 — Benchmarks & evaluation ⏳
 Datasets with contamination controls (post-cutoff + mutated splits), detection/verification/

@@ -1,0 +1,71 @@
+name: Action smoke test
+
+# Self-tests action.yml end to end (real astral-sh/setup-uv, real `uv sync`,
+# real `ward scan`, real github/codeql-action/upload-sarif) against this
+# exact commit -- cortexward-ref pins to github.sha rather than the default
+# "main" so a change to action.yml itself, or to ward scan, is validated
+# before it ever reaches main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  clean-target:
+    name: Scan a clean target (expected to pass)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run CortexWard scan against a known-clean package
+        id: scan
+        uses: ./
+        with:
+          path: packages/cortexward-core/src/cortexward/domain
+          fail-on: high
+          cortexward-ref: ${{ github.sha }}
+
+      - name: Verify the SARIF report was produced
+        shell: bash
+        run: |
+          test -f "${{ steps.scan.outputs.sarif-path }}"
+          test "${{ steps.scan.outputs.exit-code }}" = "0"
+
+  vulnerable-target:
+    name: Scan a deliberately vulnerable fixture (expected to fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write a deliberately vulnerable fixture
+        shell: bash
+        run: |
+          mkdir -p /tmp/cortexward-action-fixture
+          cat > /tmp/cortexward-action-fixture/vuln.py <<'EOF'
+          import subprocess
+
+
+          def run(cmd):
+              subprocess.call(cmd, shell=True)
+          EOF
+
+      - name: Run CortexWard scan against the vulnerable fixture
+        id: scan
+        uses: ./
+        continue-on-error: true
+        with:
+          path: /tmp/cortexward-action-fixture
+          fail-on: high
+          cortexward-ref: ${{ github.sha }}
+
+      - name: Verify the action reported a finding and failed as expected
+        shell: bash
+        run: |
+          test -f "${{ steps.scan.outputs.sarif-path }}"
+          test "${{ steps.scan.outputs.exit-code }}" = "1"
+          test "${{ steps.scan.outcome }}" = "failure"

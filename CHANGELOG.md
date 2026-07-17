@@ -14,6 +14,16 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 8 — GitHub Action.** `action.yml` (repo root): a composite action wrapping `ward scan`.
+  Checks out CortexWard itself at a pinned ref (`cortexward-ref`, default `main`) into a side
+  path, `uv sync`s it, and runs `ward scan` against the calling repository's own checkout — no
+  PyPI publish needed. Inputs are threaded through `env:` variables, never interpolated directly
+  into the shell script, avoiding the standard GitHub Actions shell-injection pitfall. Results
+  upload via `github/codeql-action/upload-sarif` into the calling repo's Security tab.
+  Self-tested end to end on this repo's own CI
+  (`.github/workflows/action-smoke-test.yml`, `uses: ./` pinned to the exact commit under test):
+  one job scans a known-clean package (asserts exit 0), another scans a deliberately vulnerable
+  fixture (asserts exit 1 and a produced SARIF file).
 - **Phase 5 (in progress) — Threat & architecture reasoning: STRIDE threat modeling.** Grounded
   on existing scanner findings, not a new detection capability.
   - `Threat`/`ThreatModel` (`cortexward.domain.threat_model`) reclassify a `Finding` under

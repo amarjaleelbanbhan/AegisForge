@@ -1,0 +1,92 @@
+name: "CortexWard Scan"
+description: >-
+  Run CortexWard (bandit + detect-secrets + OSV.dev) against a repository and
+  upload the results as a SARIF code-scanning report.
+author: "amarjaleelbanbhan"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Path to scan, relative to the calling repository's checkout."
+    required: false
+    default: "."
+  fail-on:
+    description: "Minimum severity that fails the action: none, low, medium, high, critical."
+    required: false
+    default: "high"
+  baseline:
+    description: >-
+      Path to a baseline file (see `ward baseline`) used to suppress known
+      findings. Leave empty to scan without a baseline.
+    required: false
+    default: ""
+  language:
+    description: "Restrict scanning to this language (e.g. 'python'). Leave empty to scan all."
+    required: false
+    default: ""
+  upload-sarif:
+    description: "Whether to upload the SARIF report via github/codeql-action/upload-sarif."
+    required: false
+    default: "true"
+  cortexward-ref:
+    description: "Git ref of amarjaleelbanbhan/CortexWard to install `ward` from."
+    required: false
+    default: "main"
+
+outputs:
+  sarif-path:
+    description: "Path to the generated SARIF file."
+    value: ${{ steps.scan.outputs.sarif-path }}
+  exit-code:
+    description: "ward scan's own exit code (0 clean, 1 if --fail-on's threshold was crossed)."
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Checkout CortexWard
+      uses: actions/checkout@v4
+      with:
+        repository: amarjaleelbanbhan/CortexWard
+        ref: ${{ inputs.cortexward-ref }}
+        path: .cortexward-action-src
+
+    - name: Sync CortexWard workspace
+      shell: bash
+      run: uv sync --all-packages --project .cortexward-action-src
+
+    - name: Run ward scan
+      id: scan
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        BASELINE: ${{ inputs.baseline }}
+        LANGUAGE: ${{ inputs.language }}
+      run: |
+        set +e
+        args=(scan "$SCAN_PATH" --output cortexward-results.sarif --fail-on "$FAIL_ON")
+        if [ -n "$BASELINE" ]; then
+          args+=(--baseline "$BASELINE")
+        fi
+        if [ -n "$LANGUAGE" ]; then
+          args+=(--language "$LANGUAGE")
+        fi
+        uv run --project .cortexward-action-src ward "${args[@]}"
+        exit_code=$?
+        echo "sarif-path=cortexward-results.sarif" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$exit_code" >> "$GITHUB_OUTPUT"
+        exit "$exit_code"
+
+    - name: Upload SARIF
+      if: always() && inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: cortexward-results.sarif
