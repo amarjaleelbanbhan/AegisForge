@@ -105,6 +105,19 @@ class TestScanning:
         findings = list(BanditScanner().scan(tmp_path))
         assert findings == []
 
+    def test_a_hung_subprocess_degrades_to_no_findings(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A timed-out Bandit process must not crash the whole multi-scanner
+        # pipeline -- degrades the same way a network failure does for
+        # OsvScanner, rather than propagating subprocess.TimeoutExpired.
+        def _timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            raise subprocess.TimeoutExpired(cmd=["bandit"], timeout=300)
+
+        monkeypatch.setattr(subprocess, "run", _timeout)
+        findings = list(BanditScanner().scan(tmp_path))
+        assert findings == []
+
 
 class TestPrivateHelpers:
     """Direct tests of internal parsing helpers for result shapes Bandit's

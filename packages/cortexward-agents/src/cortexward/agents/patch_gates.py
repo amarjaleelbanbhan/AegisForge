@@ -32,6 +32,9 @@ from cortexward.domain import Finding, Patch
 from cortexward.ports import ScannerPort
 
 _DRIVE_LETTER_PREFIX_LENGTH = 2
+_GIT_APPLY_TIMEOUT_SECONDS = 30
+"""Applying a small diff should be near-instant; bounded so a hung `git`
+process can't hang gate verification indefinitely."""
 
 
 def _is_safe_relative_path(path: str) -> bool:
@@ -54,16 +57,22 @@ def _git_apply(diff_path: Path, *, cwd: Path) -> bool:
     git = shutil.which("git")
     if git is None:
         return False
-    # Full resolved path from shutil.which (not a partial "git"), no shell;
-    # deliberately omits --unsafe-paths so git's own default path-traversal
-    # protections stay in effect.
-    process = subprocess.run(  # noqa: S603 # nosec B603
-        [git, "apply", str(diff_path)],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        # Full resolved path from shutil.which (not a partial "git"), no
+        # shell; deliberately omits --unsafe-paths so git's own default
+        # path-traversal protections stay in effect.
+        process = subprocess.run(  # noqa: S603 # nosec B603
+            [git, "apply", str(diff_path)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_APPLY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        # Same "inconclusive" treatment as git being unavailable at all --
+        # apply_and_rescan returns None, never guesses at a gate outcome.
+        return False
     return process.returncode == 0
 
 

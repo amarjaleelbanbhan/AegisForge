@@ -13,6 +13,8 @@ this very file.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -31,6 +33,22 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _symlinks_supported() -> bool:
+    """Whether this process can create symlinks (needs Developer Mode or
+    admin on Windows; unprivileged elsewhere)."""
+    with tempfile.TemporaryDirectory() as td:
+        target = Path(td) / "target"
+        target.write_text("x", encoding="utf-8")
+        try:
+            os.symlink(target, Path(td) / "link")
+        except OSError:
+            return False
+    return True
+
+
+_HAS_SYMLINKS = _symlinks_supported()
 
 
 class TestProtocolConformance:
@@ -94,6 +112,26 @@ class TestScanning:
 
     def test_empty_directory_yields_no_findings(self, tmp_path: Path) -> None:
         findings = list(SecretsScanner().scan(tmp_path))
+        assert findings == []
+
+    @pytest.mark.skipif(not _HAS_SYMLINKS, reason="symlinks not supported in this environment")
+    def test_a_symlinked_file_inside_root_is_not_scanned(self, tmp_path: Path) -> None:
+        # A malicious/crafted repository is untrusted input (ADR-0004): a
+        # symlink inside the scanned root pointing at a real secret file
+        # elsewhere on disk must not be followed into the scan.
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside = Path(outside_dir) / "outside_secret.py"
+            outside.write_text(f'token = "{_FAKE_GITHUB_TOKEN}"\n', encoding="utf-8")
+            (tmp_path / "link.py").symlink_to(outside)
+            findings = list(SecretsScanner().scan(tmp_path))
+        assert findings == []
+
+    @pytest.mark.skipif(not _HAS_SYMLINKS, reason="symlinks not supported in this environment")
+    def test_a_symlinked_directory_inside_root_is_not_traversed(self, tmp_path: Path) -> None:
+        with tempfile.TemporaryDirectory() as outside_dir:
+            _write(Path(outside_dir), "secret.py", f'token = "{_FAKE_GITHUB_TOKEN}"\n')
+            (tmp_path / "linked_dir").symlink_to(outside_dir, target_is_directory=True)
+            findings = list(SecretsScanner().scan(tmp_path))
         assert findings == []
 
 

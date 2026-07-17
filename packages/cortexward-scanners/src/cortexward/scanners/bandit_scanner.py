@@ -21,22 +21,13 @@ import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from cortexward.domain import SourceLocation
+from cortexward.domain import EXCLUDED_DIR_NAMES, SourceLocation
 from cortexward.ports import RawFinding
 
-_EXCLUDED_DIR_NAMES = (
-    ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "build",
-    "dist",
-    "node_modules",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".pytest_cache",
-    ".hypothesis",
-)
+_SUBPROCESS_TIMEOUT_SECONDS = 300
+"""Generous but bounded: a hung Bandit process must not hang a whole scan
+indefinitely, matching every network call in this codebase already having
+an explicit timeout (`OsvScanner`, every `LLMPort` adapter)."""
 
 
 def _int(value: object, *, default: int) -> int:
@@ -113,25 +104,32 @@ class BanditScanner:
         if languages and "python" not in languages:
             return
         resolved_root = root.resolve()
-        excludes = ",".join(f"*/{name}/*" for name in _EXCLUDED_DIR_NAMES)
-        # Fixed argv, no shell, trusted tool (see module docstring).
-        process = subprocess.run(  # noqa: S603 # nosec B603
-            [
-                sys.executable,
-                "-m",
-                "bandit",
-                "-f",
-                "json",
-                "-q",
-                "-r",
-                str(resolved_root),
-                "-x",
-                excludes,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        excludes = ",".join(f"*/{name}/*" for name in EXCLUDED_DIR_NAMES)
+        try:
+            # Fixed argv, no shell, trusted tool (see module docstring).
+            process = subprocess.run(  # noqa: S603 # nosec B603
+                [
+                    sys.executable,
+                    "-m",
+                    "bandit",
+                    "-f",
+                    "json",
+                    "-q",
+                    "-r",
+                    str(resolved_root),
+                    "-x",
+                    excludes,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            # Degrades to no findings from this scanner, same as OsvScanner
+            # on a network failure -- one hung tool must not crash the whole
+            # multi-scanner pipeline.
+            return
         if not process.stdout.strip():
             return
         payload = json.loads(process.stdout)

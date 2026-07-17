@@ -8,6 +8,7 @@ calls — only parsing and manifest reading (ADR-0004).
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -15,6 +16,7 @@ import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 
 from cortexward.cpg import GraphBuilder
+from cortexward.domain import EXCLUDED_DIR_NAMES
 from cortexward.languages.python._ast_walker import walk_module
 from cortexward.languages.python._call_graph_builder import build_call_graph
 from cortexward.languages.python._cfg_builder import build_control_flow
@@ -30,30 +32,32 @@ _DEPENDENCY_MANIFEST_NAMES = (
     "Pipfile",
 )
 
-_EXCLUDED_DIR_NAMES = frozenset(
-    {
-        ".git",
-        ".venv",
-        "venv",
-        "__pycache__",
-        "build",
-        "dist",
-        "node_modules",
-        ".mypy_cache",
-        ".ruff_cache",
-        ".pytest_cache",
-        ".hypothesis",
-    }
-)
+
+def _is_excluded_dir_name(name: str) -> bool:
+    return name in EXCLUDED_DIR_NAMES or name.endswith(".egg-info")
 
 
 def _iter_python_files(root: Path) -> Sequence[Path]:
+    """Every `.py` file under `root`, never crossing a symlink.
+
+    `os.walk(..., followlinks=False)` — not `Path.rglob()` — is what makes
+    this reliable: `rglob` only gained a `recurse_symlinks=False` default in
+    Python 3.13, so on the 3.11/3.12 this project's own CI matrix still
+    supports, `rglob` would silently follow a symlinked directory inside a
+    parsed (untrusted, per ADR-0004) repository out past `root`.
+    """
     files: list[Path] = []
-    for path in sorted(root.rglob("*.py")):
-        if any(part in _EXCLUDED_DIR_NAMES or part.endswith(".egg-info") for part in path.parts):
-            continue
-        files.append(path)
-    return files
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [name for name in dirnames if not _is_excluded_dir_name(name)]
+        current = Path(dirpath)
+        for filename in filenames:
+            if not filename.endswith(".py"):
+                continue
+            path = current / filename
+            if path.is_symlink():
+                continue
+            files.append(path)
+    return sorted(files)
 
 
 class PythonLanguageProvider:

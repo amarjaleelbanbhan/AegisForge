@@ -16,6 +16,7 @@ from cortexward.domain.enums import (
     VerificationRung,
     VexStatus,
 )
+from cortexward.domain.filesystem import EXCLUDED_DIR_NAMES
 from cortexward.domain.fingerprint import fingerprint_for
 from cortexward.domain.models import (
     Evidence,
@@ -38,6 +39,7 @@ from cortexward.domain.verification import (
 )
 
 __all__ = [
+    "EXCLUDED_DIR_NAMES",
     "Assessment",
     "Evidence",
     "EvidenceKind",

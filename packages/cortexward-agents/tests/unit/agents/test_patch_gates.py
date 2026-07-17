@@ -10,6 +10,7 @@ scanner, so a fake scanner would test nothing meaningful about it.
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -151,6 +152,26 @@ class TestInconclusiveOutcomes:
     ) -> None:
         (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
         monkeypatch.setattr(shutil, "which", lambda _name: None)
+        result = apply_and_rescan(
+            _patch(_FIXING_DIFF),
+            _finding(),
+            root=tmp_path,
+            scanners=(BanditScanner(),),
+        )
+        assert result is None
+
+    def test_a_hung_git_apply_returns_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Same inconclusive treatment as git being unavailable at all --
+        # a timed-out `git apply` must not propagate TimeoutExpired and
+        # crash gate verification.
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+
+        def _timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            raise subprocess.TimeoutExpired(cmd=["git", "apply"], timeout=30)
+
+        monkeypatch.setattr(subprocess, "run", _timeout)
         result = apply_and_rescan(
             _patch(_FIXING_DIFF),
             _finding(),

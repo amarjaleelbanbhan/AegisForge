@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,22 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def provider() -> PythonLanguageProvider:
     return PythonLanguageProvider()
+
+
+def _symlinks_supported() -> bool:
+    """Whether this process can create symlinks (needs Developer Mode or
+    admin on Windows; unprivileged elsewhere)."""
+    with tempfile.TemporaryDirectory() as td:
+        target = Path(td) / "target"
+        target.write_text("x", encoding="utf-8")
+        try:
+            os.symlink(target, Path(td) / "link")
+        except OSError:
+            return False
+    return True
+
+
+_HAS_SYMLINKS = _symlinks_supported()
 
 
 def test_satisfies_language_provider_protocol(provider: PythonLanguageProvider) -> None:
@@ -109,15 +127,25 @@ class TestParse:
         assert not any(".venv" in p or "__pycache__" in p for p in paths)
 
     def test_unreadable_path_is_skipped_not_fatal(
-        self, tmp_path: Path, provider: PythonLanguageProvider
+        self, tmp_path: Path, provider: PythonLanguageProvider, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # A directory literally named "*.py" matches the glob but raises
-        # IsADirectoryError (an OSError) on read; parsing must skip it rather
-        # than crash the whole run, since a real repo can contain oddities
-        # like broken symlinks that fail to read for similar reasons.
-        (tmp_path / "trap.py").mkdir()
-        (tmp_path / "app.py").write_text("x = 1\n")
+        # A real repo can contain a file that's unreadable by the time it's
+        # actually opened (permission changes, a deleted-then-recreated
+        # file, a TOCTOU race with a concurrent process) even though it was
+        # a genuine file, not a directory or symlink, when listed; parsing
+        # must skip it rather than crash the whole run.
+        (tmp_path / "trap.py").write_text("x = 1\n")
+        (tmp_path / "app.py").write_text("y = 1\n")
+        trap_path = (tmp_path / "trap.py").resolve()
 
+        real_read_bytes = Path.read_bytes
+
+        def _flaky_read_bytes(self: Path) -> bytes:
+            if self.resolve() == trap_path:
+                raise OSError("simulated unreadable file")
+            return real_read_bytes(self)
+
+        monkeypatch.setattr(Path, "read_bytes", _flaky_read_bytes)
         graph = provider.parse(tmp_path)
         assert isinstance(graph, InMemoryCodeGraph)
         paths = {node_id.split("#", 1)[0] for node_id in graph.nodes}
@@ -130,3 +158,33 @@ class TestParse:
         assert isinstance(graph, InMemoryCodeGraph)
         assert dict(graph.nodes) == {}
         assert graph.entrypoints() == ()
+
+    @pytest.mark.skipif(not _HAS_SYMLINKS, reason="symlinks not supported in this environment")
+    def test_a_symlinked_file_inside_root_is_not_parsed(
+        self, tmp_path: Path, provider: PythonLanguageProvider
+    ) -> None:
+        # A malicious/crafted repository is untrusted input (ADR-0004): a
+        # symlink inside the parsed root pointing at a real file elsewhere
+        # on disk must not be followed into the graph.
+        (tmp_path / "app.py").write_text("x = 1\n")
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside = Path(outside_dir) / "outside.py"
+            outside.write_text("SHOULD_NOT_APPEAR = 1\n")
+            (tmp_path / "link.py").symlink_to(outside)
+            graph = provider.parse(tmp_path)
+        assert isinstance(graph, InMemoryCodeGraph)
+        paths = {node_id.split("#", 1)[0] for node_id in graph.nodes}
+        assert paths == {"app.py"}
+
+    @pytest.mark.skipif(not _HAS_SYMLINKS, reason="symlinks not supported in this environment")
+    def test_a_symlinked_directory_inside_root_is_not_traversed(
+        self, tmp_path: Path, provider: PythonLanguageProvider
+    ) -> None:
+        (tmp_path / "app.py").write_text("x = 1\n")
+        with tempfile.TemporaryDirectory() as outside_dir:
+            (Path(outside_dir) / "outside.py").write_text("SHOULD_NOT_APPEAR = 1\n")
+            (tmp_path / "linked_dir").symlink_to(outside_dir, target_is_directory=True)
+            graph = provider.parse(tmp_path)
+        assert isinstance(graph, InMemoryCodeGraph)
+        paths = {node_id.split("#", 1)[0] for node_id in graph.nodes}
+        assert paths == {"app.py"}
