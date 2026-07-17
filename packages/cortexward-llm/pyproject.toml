@@ -3,7 +3,7 @@
 # package may depend on a specific provider SDK type. Depends on
 # cortexward-core for the LLMPort/EmbeddingPort contracts.
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]

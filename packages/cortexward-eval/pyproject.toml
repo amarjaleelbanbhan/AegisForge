@@ -3,7 +3,7 @@
 # the Finding domain model and SourceLocation; every subsequent capability
 # is measured against this package from the moment it exists (ADR-0007).
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]

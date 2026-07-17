@@ -10,7 +10,7 @@
 # resolves) and uvicorn itself; both are hard dependencies, not an optional
 # extra, so `ward serve` genuinely works out of the box.
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
