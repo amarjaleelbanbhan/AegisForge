@@ -20,7 +20,7 @@ jobs:
     name: Scan a clean target (expected to pass)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run CortexWard scan against a known-clean package
         id: scan
@@ -40,7 +40,7 @@ jobs:
     name: Scan a deliberately vulnerable fixture (expected to fail)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Write a deliberately vulnerable fixture
         shell: bash

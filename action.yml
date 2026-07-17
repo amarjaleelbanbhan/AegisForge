@@ -52,7 +52,7 @@ runs:
         enable-cache: true
 
     - name: Checkout CortexWard
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         repository: amarjaleelbanbhan/CortexWard
         ref: ${{ inputs.cortexward-ref }}
