@@ -34,6 +34,15 @@ All notable changes to CortexWard are documented here. The format is based on
   swallowed every finding (`|| echo "::warning::..."`), so it could never fail the build — a
   security control that can't fail isn't a gate. No advisories exist against the current
   locked dependency set, so this was safe to flip to blocking today.
+- **Four transitive advisories from the new `semgrep` dependency, confirmed unreachable and
+  explicitly ignored.** Adding `SemgrepScanner` pulled in `semgrep`'s hard pins on `click~=8.1.8`
+  (`PYSEC-2026-2132`, a command-injection fix in `click.edit()` — this codebase never calls
+  `click.edit()` or imports `click` at all, it only invokes the `semgrep` CLI as a subprocess) and
+  `mcp==1.23.3` (`CVE-2026-52870`, `CVE-2026-52869`, `CVE-2026-59950` — all three are MCP
+  **server**-side transport/handler vulnerabilities; this project never starts an MCP server).
+  Neither package has a newer semgrep-compatible pin available yet, so each advisory is ignored
+  with `pip-audit`'s own `--ignore-vuln <ID>`, one flag per ID with the reasoning recorded inline
+  in `ci.yml` — not a blanket re-widening of the gate flipped to blocking above.
 
 ### Fixed
 - **Unbounded subprocess hangs.** Neither the `bandit` subprocess (`BanditScanner`) nor the
