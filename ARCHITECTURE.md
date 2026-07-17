@@ -438,7 +438,9 @@ The code under analysis is **untrusted, adversarial input**. Concrete threats an
 | Malicious build steps executing during "static" analysis | No build execution in the static phase; parsing only. |
 | Sandbox / analysis escape | Deny-by-default egress, ephemeral envs, progressive isolation tiers. |
 | Secret exfiltration via LLM APIs | Local-only mode; explicit egress consent; secret redaction before any model call. |
-| Supply chain of CortexWard's own deps | `pip-audit` + `gitleaks` in CI (`self-audit` job); pinned, minimal dependencies. |
+| Supply chain of CortexWard's own deps | `pip-audit` (blocking, not warning-only) + `gitleaks` in CI (`self-audit` job); `dependabot.yml` keeps `uv.lock`, Actions, and container base images current; pinned, minimal dependencies. |
+| Symlink escape during scanning/parsing | `SecretsScanner` and the Python `LanguageProvider` walk file trees with `os.walk(..., followlinks=False)` plus an explicit `is_symlink()` check per file — never `Path.rglob()`, whose `recurse_symlinks=False` default only exists on Python 3.13+, not the 3.11/3.12 this project still supports. A crafted repository's symlink can't pull files from outside the scanned root into a result. |
+| A hung external tool blocking a run indefinitely | Every subprocess call (`bandit`, `git apply`) and every network call (`OsvScanner`, every `LLMPort` adapter) has an explicit, bounded timeout; a timeout degrades to "no result from this step," never a crash. |
 
 A full STRIDE threat model is developed in Phase 5 and tracked in [`research/`](research/).
 

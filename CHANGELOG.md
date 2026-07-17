@@ -6,6 +6,51 @@ All notable changes to CortexWard are documented here. The format is based on
 
 ## [Unreleased]
 
+### Security
+- **Symlink-escape fix in file discovery.** `SecretsScanner` and the Python `LanguageProvider`
+  both walked scanned/parsed trees with `Path.rglob()`, which only gained a
+  `recurse_symlinks=False` default in Python 3.13 — on the 3.11/3.12 this project's own CI
+  matrix still supports, a symlink inside a scanned repository (untrusted, adversarial input
+  per ADR-0004) pointing outside the intended root would be silently followed, letting a
+  crafted repository pull unrelated files on disk into a scan or parse. Both now use
+  `os.walk(..., followlinks=False)` plus an explicit `is_symlink()` check on each discovered
+  file — version-independent, not reliant on a Python-version-specific default. Verified with
+  real symlinked files and directories (skipped automatically in environments without symlink
+  privileges). Along the way, deduplicated the identical excluded-directory-names list that had
+  drifted into three independent copies (`cortexward-scanners`' two adapters and
+  `cortexward-cpg`'s Python provider) into `cortexward.domain.filesystem.EXCLUDED_DIR_NAMES` — a
+  plain tuple, not a set, since import-linter's sibling-adapter contracts mean `cortexward.domain`
+  is the only shared home available, and iteration order needs to stay deterministic.
+- **`pip-audit` now actually gates CI.** The self-audit job's `pip-audit` step silently
+  swallowed every finding (`|| echo "::warning::..."`), so it could never fail the build — a
+  security control that can't fail isn't a gate. No advisories exist against the current
+  locked dependency set, so this was safe to flip to blocking today.
+
+### Fixed
+- **Unbounded subprocess hangs.** Neither the `bandit` subprocess (`BanditScanner`) nor the
+  `git apply` subprocess (`apply_and_rescan`'s patch-gate verification) had a `timeout=`, unlike
+  every network call in this codebase (`OsvScanner`, every `LLMPort` adapter). A hung external
+  process could block a scan or gate check indefinitely with no recovery. Both now have an
+  explicit, generous-but-bounded timeout (300s for Bandit, 30s for `git apply`) and degrade
+  gracefully on expiry — no findings from that scanner, or `None` ("inconclusive") from the gate
+  check — rather than propagating `subprocess.TimeoutExpired` and crashing the run.
+- **`Dockerfile` shipped a non-functional image.** It only ever installed `cortexward-core`
+  standalone and its `CMD` was a placeholder stub predating the `ward` CLI entirely — the
+  comment literally said "replaced by the CLI entry point in a later phase," and that phase
+  landed without this file ever being revisited. Nothing built or ran it in CI, so this drifted
+  silently. Rewritten: the builder stage now copies the whole workspace (workspace-member
+  dependencies resolve via `{ workspace = true }` sources, ADR-0005, so a single package can't
+  be installed in isolation) and runs `uv sync --frozen --no-dev --no-editable --package
+  cortexward-cli`, verified empirically to pull in every transitive workspace dependency
+  `cortexward-cli` actually needs as real, non-editable files (not a `.pth` pointing back at
+  source, which would break once the runtime stage copies only `/opt/venv`). `ENTRYPOINT
+  ["ward"]` replaces the old stub `CMD`. A new `docker-build` CI job (Docker isn't available in
+  this development environment, so GitHub Actions' own runners are the only place this can be
+  verified) builds the image and smoke-tests it for real: `ward --help` runs, the container
+  runs as the unprivileged `cortex` user, and `ward scan` against a mounted, deliberately
+  vulnerable fixture actually reports the finding. A `.dockerignore` was also added — none
+  existed, so every build sent `.git`, `.venv`, and every cache directory into the build context.
+
 ### Changed
 - **Project renamed from AegisForge to CortexWard.** AegisForge collided with dozens of existing
   GitHub projects, several directly in the same space; CortexWard is confirmed clean across
@@ -14,6 +59,11 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Dependabot** (`.github/dependabot.yml`): weekly automated update PRs across every ecosystem
+  this repo actually has — `uv` (`pyproject.toml`/`uv.lock`, GA in Dependabot since March 2025),
+  `github-actions` (workflow action versions), `docker` (the root `Dockerfile`), and
+  `devcontainers` (`.devcontainer/devcontainer.json`'s base image). Python dependency updates are
+  grouped into one PR per week rather than one-per-package to keep review manageable.
 - **Phase 8 — GitHub Action.** `action.yml` (repo root): a composite action wrapping `ward scan`.
   Checks out CortexWard itself at a pinned ref (`cortexward-ref`, default `main`) into a side
   path, `uv sync`s it, and runs `ward scan` against the calling repository's own checkout — no
