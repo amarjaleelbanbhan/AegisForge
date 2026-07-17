@@ -6,6 +6,15 @@ All notable changes to CortexWard are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+- **Inconsistent line endings across the whole repository.** No `.gitattributes` ever existed,
+  so every file's line ending was whatever the committing machine's editor/tool happened to use
+  — a real, confirmed split: 41 CRLF vs. 112 LF `.py` files, 23 CRLF vs. 20 LF `.md` files, and
+  more, entirely by accident of which OS last touched each file. Added `.gitattributes` (`* text
+  =auto eol=lf`) and renormalized every tracked file with `git add --renormalize .`, verified to
+  be a pure line-ending change with no content difference (`git diff -w` shows nothing but the
+  new `.gitattributes` file itself).
+
 ### Security
 - **Symlink-escape fix in file discovery.** `SecretsScanner` and the Python `LanguageProvider`
   both walked scanned/parsed trees with `Path.rglob()`, which only gained a

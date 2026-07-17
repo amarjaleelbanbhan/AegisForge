@@ -1,0 +1,9 @@
+# Normalize all text files to LF on checkin, checkout as LF regardless of
+# platform. Without this, files committed from a Windows checkout (no
+# .gitattributes existed before this) end up with CRLF while files
+# committed from Linux/macOS end up LF, purely by accident of which
+# machine wrote them last -- this repo had exactly that split (Python,
+# TOML, Markdown, and workflow YAML all mixed CRLF/LF) before this file
+# was added. LF is the right default for a project whose CI, containers,
+# and target audience are predominantly Unix.
+* text=auto eol=lf
