@@ -1,0 +1,38 @@
+version: 2
+updates:
+  # Python dependencies (pyproject.toml + the shared workspace uv.lock,
+  # ADR-0005 -- a single lockfile at the workspace root, not per-package).
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+  # Actions used in .github/workflows/*.yml.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(ci)"
+
+  # The runtime container image (Dockerfile at the repo root).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(docker)"
+
+  # The devcontainer's own base image.
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(devcontainer)"
