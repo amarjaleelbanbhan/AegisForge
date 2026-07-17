@@ -2,9 +2,10 @@
   "name": "CortexWard",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "features": {
-    "ghcr.io/va-h/devcontainers-features/uv:1": {}
+    "ghcr.io/va-h/devcontainers-features/uv:1": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
   },
-  "postCreateCommand": "uv sync --all-packages --extra dev",
+  "postCreateCommand": "uv sync --all-packages --extra dev && (cd integrations/vscode && npm install)",
   "customizations": {
     "vscode": {
       "extensions": [

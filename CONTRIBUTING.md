@@ -41,6 +41,21 @@ one package's tests don't collide with a sibling's under the shared module name 
 the `--import-mode=importlib` note in `pyproject.toml`), a single combined mypy invocation would
 see two same-named top-level `conftest` modules and refuse to proceed.
 
+### VS Code extension (`integrations/vscode/`)
+
+A separate Node.js/TypeScript subproject, not part of the uv workspace above. Requires
+Node.js 20+:
+
+```bash
+cd integrations/vscode
+npm install
+npm run compile        # tsc build
+npm run test:unit      # pure logic, no VS Code needed
+npm run test:integration  # launches a real VS Code Extension Host
+```
+
+See [`integrations/vscode/README.md`](integrations/vscode/README.md) for details.
+
 ## Standards
 
 - **Architecture:** respect the hexagonal boundaries — the domain core (`cortexward.domain`)
