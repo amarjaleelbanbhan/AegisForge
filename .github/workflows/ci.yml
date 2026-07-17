@@ -136,8 +136,12 @@ jobs:
             -o /tmp/requirements.txt
           grep -v '^-e ' /tmp/requirements.txt > /tmp/requirements.third-party.txt
 
+      # Blocking: an advisory that never fails the build isn't a gate. If a
+      # future advisory has no fixed version yet available, use pip-audit's
+      # own --ignore-vuln <ID> (with a comment explaining why) rather than
+      # reintroducing a blanket "|| warning" that silences every future one.
       - name: pip-audit (dependency vulnerabilities)
-        run: uvx pip-audit -r /tmp/requirements.third-party.txt || echo "::warning::pip-audit reported advisories"
+        run: uvx pip-audit -r /tmp/requirements.third-party.txt
 
       - name: Generate CycloneDX SBOM
         run: |
@@ -150,3 +154,43 @@ jobs:
           name: sbom
           path: sbom.cdx.json
           if-no-files-found: warn
+
+  # The Dockerfile has no other verification: it isn't exercised by the
+  # quality job (that runs directly on the runner's own uv-managed venv,
+  # never inside the image) and nothing else builds it. Without this job,
+  # the image can silently drift out of sync with the rest of the
+  # workspace -- exactly what happened before this job existed, when the
+  # Dockerfile only installed cortexward-core and its CMD was a placeholder
+  # stub that predated the ward CLI entirely.
+  docker-build:
+    name: Docker image builds and runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t cortexward:ci .
+
+      - name: Smoke test -- ward --help runs as the entrypoint
+        run: docker run --rm cortexward:ci --help | grep -q "CortexWard"
+
+      - name: Smoke test -- runs as the unprivileged cortex user
+        run: |
+          uid="$(docker run --rm --entrypoint id cortexward:ci -u)"
+          test "$uid" = "10001"
+
+      - name: Write a deliberately vulnerable fixture to scan
+        run: |
+          mkdir -p /tmp/docker-scan-fixture
+          cat > /tmp/docker-scan-fixture/vuln.py <<'EOF'
+          import subprocess
+
+
+          def run(cmd):
+              subprocess.call(cmd, shell=True)
+          EOF
+
+      - name: Smoke test -- ward scan finds the vulnerability inside the container
+        run: |
+          docker run --rm -v /tmp/docker-scan-fixture:/workspace:ro cortexward:ci \
+            scan . --fail-on none | grep -q '"ruleId"'

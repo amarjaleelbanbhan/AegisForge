@@ -1,0 +1,24 @@
+# Keep the build context small and avoid ever sending dev-only or
+# credential-bearing files to the Docker daemon.
+.git
+.github
+.devcontainer
+.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.hypothesis
+**/*.egg-info
+dist
+build
+docs
+research
+*.md
+.env
+.env.*
+cortexward-baseline.json
+sbom.cdx.json
+coverage.xml
+.coverage
