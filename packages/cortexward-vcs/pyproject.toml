@@ -1,0 +1,43 @@
+# cortexward-vcs — VCS host adapters implementing VCSPort (MPS §17.1, §21).
+# Depends on cortexward-core for the port contract and PullRequestRef.
+# Host-specific auth and API calls live entirely in each adapter; engine
+# code only ever depends on VCSPort, never a concrete host.
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortexward-vcs"
+version = "0.1.0.dev0"
+description = "CortexWard VCS host adapters (GitHub, ...) implementing VCSPort."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CortexWard Contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  "cortexward-core",
+]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
+Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[project.entry-points."cortexward.vcs"]
+github = "cortexward.vcs.github_adapter:GitHubVCSAdapter"
+
+[tool.uv.sources]
+cortexward-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortexward"]

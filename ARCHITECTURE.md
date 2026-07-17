@@ -130,8 +130,11 @@ state by accident; the orchestrator threads new values explicitly.
 The full port catalog from MPS §17.1 exists today as `typing.Protocol` contracts, each owning
 its own small request/response DTOs so the domain model stays free of port concerns:
 `LanguageProvider`, `CodeGraph`, `ScannerPort`, `LLMPort`/`EmbeddingPort`, `SandboxPort`,
-`VCSPort`, `StoragePort`, `TelemetryPort`, `OrchestratorPort`, `ReporterPort`. No adapters
-exist yet — these are the contracts future scanner/LLM/sandbox/VCS packages implement against.
+`VCSPort`, `StoragePort`, `TelemetryPort`, `OrchestratorPort`, `ReporterPort`. Adapters exist
+today for `LanguageProvider` (§4.2), `ScannerPort` (§4.3), `LLMPort` (§4.4), `VCSPort` (§4.7,
+`GitHubVCSAdapter`), and `OrchestratorPort`/`ReporterPort` (§4.3/§4.4/§4.7 respectively);
+`SandboxPort`, `StoragePort`, and `TelemetryPort` have no adapter yet — the contracts remain
+what a future implementation builds against.
 
 `cortexward.plugins` provides `PluginGroup` (the canonical entry-point group per port) and
 `PluginRegistry`, which discovers and lazily loads adapters via `importlib.metadata` entry
@@ -442,6 +445,27 @@ pointed at a path `tsc` never actually produced; the extension compiled and unit
 but would have failed to activate for every real user). A path-filtered CI workflow
 (`.github/workflows/vscode-extension.yml`) compiles, tests (via `xvfb-run` on headless Linux
 runners), and packages the extension on every push touching `integrations/vscode/**`.
+
+`cortexward-vcs` ships `GitHubVCSAdapter`, the first implementation of `VCSPort` (§4.1b) — the
+port itself dates to Phase 1's port catalog work, but nothing implemented it until now. It calls
+GitHub's REST API v3 directly via `urllib.request` (no `PyGithub` dependency), matching the
+same fixed-timeout, no-shell, JSON-only discipline every other host-calling adapter in this
+codebase already follows; `checkout` is the one operation that shells out to a real `git`
+subprocess instead, since GitHub's API has no clone endpoint — reusing `apply_and_rescan`'s own
+`git`-invocation discipline (`shutil.which`-resolved, never a bare `"git"` argv entry, a bounded
+timeout), plus a new safeguard this adapter needed that `apply_and_rescan` didn't: redacting the
+access token embedded in the clone URL from any `git` stderr surfaced in an exception, since git
+itself can echo the URL it tried back in its own error messages. A new import-linter contract
+("VCS adapters do not depend on other adapters or interfaces") holds `cortexward.vcs` to the
+same peer-isolation standard as `cortexward-scanners`/`cortexward-llm`/`cortexward-reporters`.
+Like `AnthropicAdapter`/`GeminiAdapter`, this adapter isn't live-verified — no GitHub token with
+write access to a real repository exists in this environment — but `checkout` is tested against
+a real local git repository, and the REST calls are unit-tested against GitHub's documented
+schema. This is the adapter layer only, not a GitHub App: `GitHubVCSAdapter` accepts a single
+bearer token (a PAT or an already-exchanged installation token) and doesn't care which — the JWT/
+installation-token exchange, a webhook receiver, and automated end-to-end PR review are a
+separate, larger integration, and registering an actual GitHub App is an owner-account action
+this project can't make unilaterally.
 
 The GitHub App (bot-driven PR review) is what's left of Phase 8.
 

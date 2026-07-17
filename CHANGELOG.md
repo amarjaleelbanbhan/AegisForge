@@ -68,6 +68,21 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **`GitHubVCSAdapter`** (`cortexward-vcs`, new workspace package): the first `VCSPort`
+  implementation — the port itself was already defined (Phase 1's port catalog work), but no
+  adapter existed. Calls GitHub's REST API v3 via `urllib.request` (no `PyGithub` dependency);
+  `checkout` shells out to a real `git` subprocess, reusing `apply_and_rescan`'s own discipline
+  (`shutil.which`-resolved, no shell, a bounded timeout, and — new here — redaction of the
+  embedded access token from any git stderr surfaced in an exception). Registered under the
+  `cortexward.vcs` entry-point group as `github`; a new import-linter contract holds it to the
+  same peer-isolation standard as the other adapter families. 100%-covered: `checkout` against a
+  real local git repository, the REST calls against GitHub's documented schema (deterministic,
+  no network — not live-verified, no credentials in this environment, the same caveat
+  `AnthropicAdapter`/`GeminiAdapter` carry), and a genuine entry-point-discovery check. This is
+  the adapter layer only — a GitHub App (JWT/installation-token exchange, a webhook receiver,
+  automated end-to-end PR review) is a separate, larger integration this session deliberately
+  didn't attempt, since registering an actual GitHub App is an owner-account action this project
+  can't make unilaterally.
 - **Phase 8 — VS Code extension** (`integrations/vscode/`), this monorepo's first TypeScript/
   Node subproject. **CortexWard: Scan Workspace** runs `ward scan --fail-on none --format sarif`
   (no LLM, matching `ward baseline`/`ward threat-model`) and publishes results as real

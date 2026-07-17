@@ -443,7 +443,28 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
     `integrations/vscode/**`: compiles, unit-tests, and integration-tests (via `xvfb-run` on
     Linux, natively on Windows) on both `ubuntu-latest` and `windows-latest`, then verifies
     packaging.
-- ⏳ A GitHub App (bot-driven PR review/comments) remains unbuilt.
+- ✅ **`GitHubVCSAdapter`** (`cortexward-vcs`, new workspace package): the first `VCSPort`
+  implementation (MPS §17.1/§21's port was already defined, from Phase 1's port catalog work —
+  no adapter existed until now). Calls GitHub's REST API v3 directly via `urllib.request` (no
+  `PyGithub` dependency), matching every other host-calling adapter in this codebase; `checkout`
+  shells out to a real `git` subprocess (GitHub's API has no clone endpoint), reusing
+  `apply_and_rescan`'s own discipline (`shutil.which`-resolved, no shell, a bounded timeout).
+  Registered under the `cortexward.vcs` entry-point group as `github`; a new import-linter
+  contract ("VCS adapters do not depend on other adapters or interfaces") holds it to the same
+  peer-isolation standard as `cortexward-scanners`/`cortexward-llm`/`cortexward-reporters`.
+  100%-covered: `checkout` against a real local git repository (matching this codebase's
+  preference for real components over mocks), the REST calls against GitHub's documented schema
+  (deterministic, no network — the same "not live-verified, no credentials in this environment"
+  caveat `AnthropicAdapter`/`GeminiAdapter` carry), and a genuine end-to-end entry-point-discovery
+  check confirming the plugin registry actually resolves and instantiates it.
+  **This is the adapter layer only** — this session deliberately did not attempt a GitHub *App*
+  (JWT + installation-token exchange, a webhook receiver reacting to `pull_request`/`push`
+  events, automated end-to-end PR review). `GitHubVCSAdapter` accepts a single bearer token
+  (a PAT or an already-exchanged installation token) and doesn't care which; registering an
+  actual GitHub App is an owner-account action (naming, requested permission scopes,
+  public/private, webhook secret provisioning) this project can't make unilaterally.
+- ⏳ A GitHub App (bot-driven PR review/comments) remains unbuilt — see `GitHubVCSAdapter` above
+  for what it would build on top of.
 
 ## Phase 9 — Benchmarks & evaluation ⏳
 Datasets with contamination controls (post-cutoff + mutated splits), detection/verification/
