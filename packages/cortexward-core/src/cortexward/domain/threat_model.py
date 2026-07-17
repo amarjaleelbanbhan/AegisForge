@@ -69,6 +69,7 @@ _STRIDE_BY_CWE: dict[int, frozenset[StrideCategory]] = {
     326: frozenset({_I}),  # Inadequate Encryption Strength
     327: frozenset({_I, _T}),  # Use of a Broken or Risky Cryptographic Algorithm
     330: frozenset({_S, _T}),  # Use of Insufficiently Random Values
+    347: frozenset({_S, _T}),  # Improper Verification of Cryptographic Signature
     377: frozenset({_T, _I}),  # Insecure Temporary File
     400: frozenset({_D}),  # Uncontrolled Resource Consumption
     494: frozenset({_T}),  # Download of Code Without Integrity Check

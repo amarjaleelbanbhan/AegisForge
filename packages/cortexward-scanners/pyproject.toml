@@ -30,6 +30,7 @@ dependencies = [
   "cortexward-core",
   "bandit>=1.7,<2",
   "detect-secrets>=1.5,<2",
+  "semgrep>=1.70,<2",
 ]
 
 [project.urls]
@@ -40,6 +41,7 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 bandit = "cortexward.scanners.bandit_scanner:BanditScanner"
 detect-secrets = "cortexward.scanners.secrets_scanner:SecretsScanner"
 osv = "cortexward.scanners.osv_scanner:OsvScanner"
+semgrep = "cortexward.scanners.semgrep_scanner:SemgrepScanner"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }

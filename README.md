@@ -15,9 +15,10 @@
 
 ---
 
-> **Status: Pre-alpha.** Phases 0–2 (foundation, workspace, Code Property Graph engine) are
-> complete; Phase 3 (scanners) has Bandit, detect-secrets, and OSV.dev adapters with cross-tool
-> correlation and SARIF export; Phase 4 (agent framework) has a real LLM-driven pipeline — seven
+> **Status: Pre-alpha.** Phases 0–3 (foundation, workspace, Code Property Graph engine, scanners)
+> are complete — Bandit, detect-secrets, OSV.dev, and Semgrep (a self-authored, offline, bundled
+> rule pack — no `--config=auto`, no network access) adapters with cross-tool correlation and
+> SARIF export; Phase 4 (agent framework) has a real LLM-driven pipeline — seven
 > agents, multi-provider `LLMPort`, CPG-grounded reachability evidence — behind
 > `ward scan --llm-provider`. Phase 5 (STRIDE threat modeling) and the adapter half of Phase 8
 > (CLI, REST API, GitHub Action, VS Code extension, a `GitHubVCSAdapter`) are in place too. The
@@ -80,7 +81,7 @@ Domain core:  Finding · Evidence · Verification Ladder · Patch · Provenance 
 Ports:        CodeGraph · LanguageProvider · Scanner · LLM · Sandbox · VCS
               · Storage · Telemetry · Orchestrator · Reporter   (cortexward.ports, typing.Protocol)
 Plugins:      entry-point discovery — a new adapter needs zero core changes (cortexward.plugins)
-Adapters:     tree-sitter CPG · Bandit/detect-secrets/OSV.dev · Ollama/Anthropic/OpenAI/Gemini
+Adapters:     tree-sitter CPG · Bandit/detect-secrets/OSV.dev/Semgrep · Ollama/Anthropic/OpenAI/Gemini
               · SARIF · GitHubVCSAdapter · sequential + agent-driven orchestrators
 ```
 
@@ -89,7 +90,8 @@ Adapters:     tree-sitter CPG · Bandit/detect-secrets/OSV.dev · Ollama/Anthrop
 control-flow, data-flow, and call-graph builders over tree-sitter, plus dependency-manifest
 parsing — and the reference in-memory `CodeGraph` implementation with cycle-safe
 reachability/taint/slice queries (Phase 2, complete). `cortexward-scanners` ships `BanditScanner`,
-`SecretsScanner` (detect-secrets), and `OsvScanner` (OSV.dev), plus cross-tool normalization and
+`SecretsScanner` (detect-secrets), `OsvScanner` (OSV.dev), and `SemgrepScanner` (a small,
+self-authored, offline rule pack bundled with the package), plus cross-tool normalization and
 correlation into `Finding`s. `cortexward-reporters` ships a SARIF 2.1.0 `ReporterPort` and a
 CortexWard-native JSON reporter. `cortexward-eval` ships the `RunManifest` provenance record and
 the statistical protocol (bootstrap CIs, McNemar's test). `cortexward-llm` ships `LLMPort`
@@ -198,11 +200,12 @@ print(report.recommended_state, report.vex_status, round(report.confidence, 2))
 ## Roadmap
 
 CortexWard is built in strict, shippable phases, each with tests, documentation, and a green
-CI before the next begins. Phases 0–2 (foundation, workspace, Code Property Graph) are complete.
-Phase 3 (scanners) has three adapters, cross-tool correlation, and SARIF export — a Semgrep
-adapter remains, blocked on an offline-rule-pack policy decision. Phase 3.5's `RunManifest` and
-statistical protocol are in place; the golden benchmark dataset (and Phase 9's benchmark scale-out)
-are blocked on a dataset-sourcing decision. Phase 4 (agents) is substantially complete: seven
+CI before the next begins. Phases 0–3 (foundation, workspace, Code Property Graph, scanners) are
+complete — four scanner adapters (Bandit, detect-secrets, OSV.dev, and Semgrep with a
+self-authored, offline, bundled rule pack), cross-tool correlation, and SARIF export. Phase 3.5's
+`RunManifest` and statistical protocol are in place; the golden benchmark dataset (and Phase 9's
+benchmark scale-out) are blocked on a dataset-sourcing decision. Phase 4 (agents) is
+substantially complete: seven
 real agents, a multi-provider `LLMPort`, and CPG-grounded reachability evidence, all behind
 `ward scan --llm-provider`. Phase 5 has STRIDE threat modeling (`ward threat-model`); trust-
 boundary and business-logic analysis need design work this project hasn't done yet. Phase 6

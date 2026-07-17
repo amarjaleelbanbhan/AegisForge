@@ -170,13 +170,13 @@ returns plain data rather than `CodeGraph` nodes: the MPS's "dependency graph" l
 node/edge shape isn't pinned down yet, and plain records are exactly what a future
 dependency-scanning adapter (Phase 3) needs without forcing that decision early.
 
-### 4.3 Scanners (Phase 3) — *in progress*
+### 4.3 Scanners (Phase 3) — *complete*
 
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, each normalizing to
 the internal `Finding` schema. Cross-tool **deduplication and correlation** prevents the same
 bug being reported three times. SARIF is an export format, not the internal model.
 
-`cortexward-scanners` (depends on `cortexward-core`) ships three adapters so far. `BanditScanner`
+`cortexward-scanners` (depends on `cortexward-core`) ships four adapters. `BanditScanner`
 invokes `python -m bandit -f json` as a subprocess — a static analyzer that only parses Python's
 AST, so this doesn't touch the non-execution guarantee (ADR-0004), which is about *analyzed
 project* code, not trusted third-party analysis tools — and maps its JSON results to
@@ -189,11 +189,30 @@ scanner doesn't have, and querying OSV without an exact version returns every vu
 recorded for a package, a poor-quality signal it deliberately avoids; it does its own minimal pin
 extraction over stdlib `urllib` rather than depending on Phase 2's `parse_dependencies` (scanner
 adapters don't depend on other adapters), and is deliberately network-dependent — unlike the other
-two, freshness against the current vulnerability landscape is the point here, not a compromise. A
-Semgrep adapter is deferred until an offline, non-registry rule pack is decided — `--config=auto`
-needs network access to semgrep.dev, which *does* conflict with this project's offline-determinism
-bar (rules changing over time hurts reproducible benchmarking, unlike a vulnerability database's
-freshness, which is a feature).
+adapters, freshness against the current vulnerability landscape is the point here, not a
+compromise.
+
+`SemgrepScanner` invokes the real `semgrep` binary, but never with `--config=auto` or a registry
+shorthand (`p/...`) — both need network access to semgrep.dev, which conflicted with this
+project's offline-determinism bar for a long time (the reason this adapter was deferred). Instead
+`--config` always points at `semgrep_rules/`, a small rule pack **authored in this repository and
+bundled inside the package** (resolved via `importlib.resources`, verified by building a real
+wheel and confirming the rule files are actually inside it) — fully offline, fully deterministic,
+and version-controlled the same way the rest of the codebase is, which also resolves the
+reproducible-benchmarking concern a live registry would have raised. The four bundled rules
+deliberately don't re-implement what Bandit already covers; they target patterns Bandit's plain
+AST pattern matching can't reach at all: SSRF (CWE-918) and Flask `render_template_string`
+server-side template injection (CWE-79) both genuinely need Semgrep's **taint mode** — tracing a
+value from a Flask request object to a sink — which is not a capability `BanditScanner`'s AST
+matching has; hard-coded credentials by variable name (CWE-798) is a syntactic complement to
+`SecretsScanner`'s entropy-based approach (the two tools agreeing on the same real leak
+strengthens the evidence once `correlate()` merges them, rather than duplicating it); JWT
+signature-verification bypass (CWE-347, newly added to the STRIDE table) catches
+`jwt.decode(..., verify=False)`-shaped calls that defeat authentication entirely. Every rule was
+authored and empirically verified — fires on a real vulnerable fixture, stays silent on a real,
+semantically-equivalent safe one — before being committed; `test_semgrep_scanner.py`'s
+`TestBundledRules` runs the real `semgrep` binary against both fixtures for every rule going
+forward, not just asserts the YAML parses.
 
 Normalization and correlation are already in place: `cortexward.scanners.normalize` turns one
 `RawFinding` into a `Finding` with a single supporting `STATIC_MATCH` `Evidence` at
@@ -210,8 +229,7 @@ SARIF's `error`/`warning`/`note` levels. Still export-only, per ADR-0003: `Findi
 richer internal model. `JsonReporter` (`format_id = "cortexward-json"`) is the complement: a
 faithful `Finding.model_dump(mode="json")` passthrough carrying every `Evidence` item SARIF's
 single-message shape can't express — the place agent-verified findings' reachability/LLM
-evidence actually becomes visible (`ward scan --format cortexward-json`). A Semgrep adapter is
-what's left of Phase 3.
+evidence actually becomes visible (`ward scan --format cortexward-json`).
 
 ### 4.3.5 Evaluation harness (Phase 3.5) — *in progress*
 

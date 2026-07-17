@@ -1,0 +1,26 @@
+rules:
+  - id: cortexward-ssrf-flask-request-to-outbound-call
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A value read directly from an incoming Flask request reaches an outbound
+      HTTP call (requests/urllib) with no validation in between. An attacker
+      can point this server at an arbitrary internal or external URL
+      (Server-Side Request Forgery).
+    metadata:
+      cwe: "CWE-918: Server-Side Request Forgery (SSRF)"
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: request.args.get(...)
+          - pattern: request.form.get(...)
+          - pattern: request.values.get(...)
+          - pattern: request.args[...]
+          - pattern: request.form[...]
+          - pattern: request.values[...]
+          - pattern: request.json.get(...)
+          - pattern: request.json[...]
+    pattern-sinks:
+      - pattern-either:
+          - pattern: requests.$METHOD(...)
+          - pattern: urllib.request.urlopen(...)

@@ -1,0 +1,17 @@
+rules:
+  - id: cortexward-jwt-signature-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      jwt.decode() is called with signature verification disabled (verify=False,
+      options={"verify_signature": False}) or with the "none" algorithm
+      explicitly accepted. Any caller can then forge a token with arbitrary
+      claims and no valid signature at all -- this typically defeats
+      authentication and authorization entirely.
+    metadata:
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+    pattern-either:
+      - pattern: 'jwt.decode(..., verify=False, ...)'
+      - pattern: 'jwt.decode(..., options={"verify_signature": False}, ...)'
+      - pattern: 'jwt.decode(..., algorithms=["none"], ...)'
+      - pattern: 'jwt.decode(..., algorithms=["None"], ...)'

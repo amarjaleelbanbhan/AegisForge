@@ -1,0 +1,24 @@
+rules:
+  - id: cortexward-ssti-flask-render-template-string
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A value read directly from an incoming Flask request is interpolated
+      into the template string passed to render_template_string() before
+      Jinja ever sees it. Jinja's autoescaping never applies to text that's
+      already been merged into the template source itself -- this can lead to
+      reflected XSS, and in the worst case (attacker-controlled Jinja syntax
+      surviving into the string) full server-side template injection.
+    metadata:
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation (XSS)"
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: request.args.get(...)
+          - pattern: request.form.get(...)
+          - pattern: request.values.get(...)
+          - pattern: request.args[...]
+          - pattern: request.form[...]
+          - pattern: request.values[...]
+    pattern-sinks:
+      - pattern: render_template_string(...)

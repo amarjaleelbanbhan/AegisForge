@@ -37,6 +37,12 @@ class TestStrideCategoriesFor:
             StrideCategory.ELEVATION_OF_PRIVILEGE,
         }
 
+    def test_signature_verification_bypass_maps_to_spoofing_and_tampering(self) -> None:
+        assert stride_categories_for(347) == {
+            StrideCategory.SPOOFING,
+            StrideCategory.TAMPERING,
+        }
+
 
 class TestThreat:
     def test_requires_at_least_one_category(self) -> None:

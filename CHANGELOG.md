@@ -68,6 +68,22 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **Phase 3 — Semgrep adapter, closing the last open item in Phase 3.** `SemgrepScanner`
+  invokes the real `semgrep` binary against `semgrep_rules/`, a small rule pack authored in this
+  repository and bundled with the package — never `--config=auto` or a registry shorthand, both
+  of which need network access to semgrep.dev and were this adapter's long-documented blocker.
+  Verified fully offline: built a real wheel, confirmed the rule YAML files are actually bundled
+  inside it. Four rules, each targeting a pattern Bandit's AST matching doesn't reach: SSRF
+  (CWE-918, taint mode), Flask `render_template_string` server-side template injection (CWE-79,
+  taint mode), hard-coded credentials by variable name (CWE-798, complements `SecretsScanner`'s
+  entropy-based detection), and JWT signature-verification bypass (CWE-347, new to the STRIDE
+  table). Every rule was authored and empirically verified — fires on a real vulnerable fixture,
+  silent on a real safe one — before being committed, enforced going forward by
+  `TestBundledRules`. 100%-covered, including the same resilience tests (timeout, missing
+  binary, malformed JSON) every other scanner adapter here has. A real bug this testing
+  surfaced: `_location_for` used `result["path"]` (bracket access), unlike every other field in
+  this codebase's untrusted-scanner-output handling (ADR-0004) — fixed to degrade gracefully
+  when a result has no `path` instead of raising `KeyError`.
 - **`SqliteRepositoryMemory`** (`cortexward-agents`): a persistent `RepositoryMemory`, closing
   `InMemoryRepositoryMemory`'s documented "lost when the process exits" limitation. Uses stdlib
   `sqlite3` only. `RepositoryMemory`'s three-method protocol is small and fully self-contained,

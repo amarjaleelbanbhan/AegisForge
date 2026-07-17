@@ -6,5 +6,13 @@ from cortexward.scanners._normalize import correlate, normalize
 from cortexward.scanners.bandit_scanner import BanditScanner
 from cortexward.scanners.osv_scanner import OsvScanner
 from cortexward.scanners.secrets_scanner import SecretsScanner
+from cortexward.scanners.semgrep_scanner import SemgrepScanner
 
-__all__ = ["BanditScanner", "OsvScanner", "SecretsScanner", "correlate", "normalize"]
+__all__ = [
+    "BanditScanner",
+    "OsvScanner",
+    "SecretsScanner",
+    "SemgrepScanner",
+    "correlate",
+    "normalize",
+]

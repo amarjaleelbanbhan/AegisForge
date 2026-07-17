@@ -76,7 +76,7 @@ API, and dependency-manifest parsing. Python first.
   per package? per manifest?) isn't pinned down yet, and this is exactly what a future
   dependency-scanning adapter (Phase 3) needs without forcing that decision early.
 
-## Phase 3 — Scanners 🚧
+## Phase 3 — Scanners ✅
 Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normalized to the
 `Finding` schema, with cross-tool dedup/correlation and SARIF export.
 - ✅ **Bandit adapter** (`cortexward-scanners`, new workspace package): `BanditScanner`
@@ -122,11 +122,33 @@ Adapters for Semgrep, Bandit, secret scanning, and dependency scanning, normaliz
   `parse_dependencies`) to respect the "scanners don't depend on other adapters" boundary — only
   name+exact-version is needed, not the full `Dependency` record. Unlike the other adapters, this
   one is deliberately network-dependent: a vulnerability database is supposed to reflect the
-  current threat landscape, so freshness is the point here, not a compromise (contrast the
-  Semgrep deferral below, where changing rules over time would hurt reproducible benchmarking).
+  current threat landscape, so freshness is the point here, not a compromise (contrast
+  `SemgrepScanner` below, whose whole point is a fixed, version-controlled rule pack).
   Network failure degrades to no findings, never a crash.
-- ⏳ Semgrep adapter (needs an offline, non-registry rule pack — `--config=auto` requires
-  network access to semgrep.dev, which conflicts with this project's offline-determinism bar).
+- ✅ **Semgrep adapter**: `SemgrepScanner` implements `ScannerPort` by invoking the real `semgrep`
+  binary against `semgrep_rules/`, a small rule pack **authored in this repository and bundled
+  with the package** — never `--config=auto` or a registry shorthand (`p/...`), both of which
+  need network access to semgrep.dev and conflict with this project's offline-determinism bar.
+  Every rule is a local YAML file resolved via `importlib.resources`, so a scan is fully offline
+  and fully deterministic (verified: built a real wheel, confirmed the rule files are actually
+  bundled inside it, not just present in the dev tree).
+  - The four bundled rules deliberately don't re-implement what Bandit already covers
+    (`shell=True`, `eval`, weak crypto, ...); they target patterns Bandit's plain AST pattern
+    matching doesn't reach: **SSRF** (CWE-918, taint mode — a Flask request value flowing into
+    `requests.*`/`urlopen`), **Flask `render_template_string` server-side template injection**
+    (CWE-79, taint mode — a request value interpolated into the template string itself, before
+    Jinja's autoescaping ever applies), **hard-coded credentials by variable name** (CWE-798, a
+    syntactic complement to `SecretsScanner`'s entropy-based approach — the two tools agreeing
+    strengthens, not duplicates, the evidence once `correlate()` merges them), and **JWT
+    signature-verification bypass** (CWE-347, new to the STRIDE table — `jwt.decode(...,
+    verify=False)` or the `"none"` algorithm accepted). Two rules genuinely need Semgrep's taint
+    mode (tracing a value from source to sink), a capability Bandit doesn't have at all.
+  - Every rule was authored and empirically verified — fired on a real vulnerable fixture, stayed
+    silent on a real, semantically-equivalent safe one — before being committed; this is enforced
+    going forward by `test_semgrep_scanner.py`'s `TestBundledRules`, which runs the real `semgrep`
+    binary against both fixtures for every rule, not just asserts the YAML parses. 100%-covered,
+    including resilience tests matching `BanditScanner`'s own (timeout, missing binary, malformed
+    JSON, path exclusions, language filter).
 
 ## Phase 3.5 — Evaluation harness 🚧 *(benchmark-first)*
 Built before advanced agents so every later feature is measured
