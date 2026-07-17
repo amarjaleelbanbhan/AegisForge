@@ -3,7 +3,7 @@
 # Host-specific auth and API calls live entirely in each adapter; engine
 # code only ever depends on VCSPort, never a concrete host.
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]

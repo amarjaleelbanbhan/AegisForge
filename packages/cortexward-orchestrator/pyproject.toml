@@ -7,7 +7,7 @@
 # between SequentialOrchestrator and the agent-driven AgentOrchestrator —
 # a decision every delivery surface needs to make the same way.
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]

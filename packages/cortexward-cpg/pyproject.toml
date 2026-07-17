@@ -3,7 +3,7 @@
 # LanguageProvider port contracts and the SourceLocation domain type; the
 # core never depends back on this package (enforced by import-linter).
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]

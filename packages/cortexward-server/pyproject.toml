@@ -5,7 +5,7 @@
 # turn a scan request's JSON body into the config build_pipeline() takes.
 # Run with `uvicorn cortexward.server.app:app`.
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]

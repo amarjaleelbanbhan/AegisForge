@@ -2,7 +2,7 @@
 # registry. Every CortexWard installation depends on this package; it in turn
 # depends on nothing beyond pydantic (ADR-0005).
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
