@@ -87,6 +87,6 @@ runs:
 
     - name: Upload SARIF
       if: always() && inputs.upload-sarif == 'true'
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: cortexward-results.sarif
