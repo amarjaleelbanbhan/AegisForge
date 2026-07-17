@@ -31,6 +31,7 @@ import re
 from collections.abc import Mapping
 
 from cortexward.agents.prompt_loader import load_prompt
+from cortexward.agents.reachability import is_reachable_from_entrypoint
 from cortexward.agents.state import RunState
 from cortexward.domain import (
     Evidence,
@@ -99,34 +100,15 @@ class VerifierAgent:
         return apply_assessment(finding.with_evidence(llm_evidence))
 
     def _reachability_evidence(self, finding: Finding) -> Evidence | None:
-        for location in finding.locations:
-            for graph in self._code_graphs.values():
-                entrypoints = graph.entrypoints()
-                if not entrypoints:
-                    continue
-                nodes = graph.nodes_at(location.path, location.start_line)
-                if not nodes:
-                    continue
-                # A source location resolves to several overlapping graph
-                # nodes (statement, call, sub-expressions, ...), but the CFG
-                # builder only links statement-level nodes into its
-                # CFG_NEXT chain -- an inner call/expression node this same
-                # line also resolves to is often simply absent from that
-                # chain. Check every candidate rather than just the most
-                # specific one: reachability is a positive-proof query, so
-                # any one of them proving a path is a genuine proof.
-                if any(graph.reachable(list(entrypoints), node) for node in nodes):
-                    return Evidence(
-                        kind=EvidenceKind.REACHABILITY_PROOF,
-                        rung=VerificationRung.STATIC_REACHABILITY,
-                        supports=True,
-                        summary=(
-                            f"reachable from {len(entrypoints)} known entrypoint(s) "
-                            "via control flow"
-                        ),
-                        provenance=Provenance(producer=self.name),
-                    )
-        return None
+        if not is_reachable_from_entrypoint(finding.locations, self._code_graphs):
+            return None
+        return Evidence(
+            kind=EvidenceKind.REACHABILITY_PROOF,
+            rung=VerificationRung.STATIC_REACHABILITY,
+            supports=True,
+            summary="reachable from a known entrypoint via control flow",
+            provenance=Provenance(producer=self.name),
+        )
 
 
 __all__ = ["VerifierAgent"]

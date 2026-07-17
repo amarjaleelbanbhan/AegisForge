@@ -23,11 +23,13 @@ from cortexward.agents.prompt_loader import (
     load_prompt,
 )
 from cortexward.agents.protocol import Agent
+from cortexward.agents.reachability import is_reachable_from_entrypoint
 from cortexward.agents.repair import RepairAgent
 from cortexward.agents.resilient_llm import AllAdaptersFailedError, ResilientLLM
 from cortexward.agents.reviewer import ReviewerAgent
 from cortexward.agents.scanner import ScannerAgent
 from cortexward.agents.state import RunState
+from cortexward.agents.threat_model import build_threat_model
 from cortexward.agents.tools import ToolExecutionError, ToolFunction, run_tool_loop
 from cortexward.agents.verifier import VerifierAgent
 
@@ -56,8 +58,10 @@ __all__ = [
     "VerifierAgent",
     "apply_and_rescan",
     "build_code_graphs",
+    "build_threat_model",
     "default_agents",
     "fingerprint_for",
+    "is_reachable_from_entrypoint",
     "load_prompt",
     "run_tool_loop",
 ]
