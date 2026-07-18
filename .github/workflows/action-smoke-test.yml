@@ -61,6 +61,7 @@ jobs:
         with:
           path: /tmp/cortexward-action-fixture
           fail-on: high
+          upload-sarif: false
           cortexward-ref: ${{ github.sha }}
 
       - name: Verify the action reported a finding and failed as expected
