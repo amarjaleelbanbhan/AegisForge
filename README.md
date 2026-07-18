@@ -217,10 +217,11 @@ real agents, a multi-provider `LLMPort`, CPG-grounded reachability evidence, and
 STRIDE threat modeling plus attack-surface and trust-boundary mapping
 (`ward threat-model`); business-logic analysis needs design work this project hasn't done yet
 (MPS gives no concrete spec to generalize from, unlike trust boundaries). Phase 6's
-`DockerSandboxAdapter` (`cortexward-sandbox`) is the first `SandboxPort` implementation — not
-live-verified in this environment (Docker's daemon is unreachable, its CLI is installed), and not
-yet called from any gate-verification agent; Phase 7's patch-gate verification has the two gates
-that don't need it (applies-cleanly, rescan-clean).
+`DockerSandboxAdapter` (`cortexward-sandbox`) is the first `SandboxPort` implementation —
+live-verified on a real Docker daemon in CI (this dev environment's own daemon is unreachable, but
+GitHub Actions' isn't, and caught three real bugs across three pushes before going green), not yet
+called from any gate-verification agent; Phase 7's patch-gate verification has the two gates that
+don't need it (applies-cleanly, rescan-clean).
 Phase 8's CLI, REST API, GitHub Action, VS Code extension, and a `GitHubVCSAdapter` are all real
 and tested — a full GitHub App (bot-driven PR review) is what's left, blocked on registering one,
 an owner-account action. See [ROADMAP.md](ROADMAP.md) for the full, per-phase breakdown of

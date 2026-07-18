@@ -434,14 +434,16 @@ unconditionally refuses to copy *into* any read-only-marked container), used a t
 (torn down before retrieval could succeed), and didn't account for a fresh volume's default root
 ownership — three errors this project's own dev environment (no reachable Docker daemon) couldn't
 have surfaced; all three only appeared once exercised against GitHub Actions' real runners, one
-per push. `ExecutionSpec` gained an `image` field (default
-`python:3.11-slim`) the port previously had no way to express at all. Not live-verified in this
-environment: the `docker` CLI is installed but
-its daemon is unreachable (confirmed via `docker info`'s connection error) — deterministic tests
-(command construction, resource-limit math, binary resolution, and the full `execute()` flow
-against a monkeypatched `docker` CLI) always run, reaching 100% coverage without a daemon; a
-`TestLiveDocker` class exercises a real daemon end to end and skips automatically when one isn't
-reachable, the same pattern `OllamaAdapter`'s `TestLiveOllama` already established. Not yet built:
+per push. `ExecutionSpec` gained an `image` field (default `python:3.11-slim`) the port previously
+had no way to express at all. Live-verified on a real daemon in CI, not in this dev environment:
+the `docker` CLI is installed here but its daemon is unreachable (confirmed via `docker info`'s
+connection error), while GitHub Actions' `ubuntu-latest` runners have a real one and run
+`TestLiveDocker` unskipped on every push — that real-daemon run is exactly what caught and drove
+the fix for all three bugs above, none of which this project's own dev environment could ever have
+surfaced. Deterministic tests (command construction, resource-limit math, binary resolution, and
+the full `execute()` flow against a monkeypatched `docker` CLI) still run and pass always too,
+reaching 100% coverage independent of any daemon, the same pattern `OllamaAdapter`'s
+`TestLiveOllama` established. Not yet built:
 anything that actually *calls* `SandboxPort.execute()` from the agent pipeline (a
 PoC-replay/differential-test agent) — the adapter existing is necessary but not sufficient to
 reach ladder rungs 3–4, and this is what Phase 7's Gates B/D (§4.6) are still waiting on.

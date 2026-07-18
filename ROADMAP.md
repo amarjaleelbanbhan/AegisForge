@@ -402,21 +402,19 @@ PoC artifacts, and VEX output.
   and didn't account for a fresh named volume's default root ownership — three errors only a real
   Docker daemon could surface, and this project's own dev environment has none reachable; all three
   were caught by GitHub Actions' real runners, one per push. `ExecutionSpec` gained an
-  `image` field (default `python:3.11-slim`, this
-  project's own primary supported language) — the port previously had no way to say what to run a
-  command inside at all.
-  - **Not live-verified in this environment**: this environment's `docker` CLI is installed, but
-    its daemon is unreachable (`docker info` fails to connect to the Docker Desktop engine) —
-    freshly reconfirmed this session with concrete evidence (the exact `npipe` connection error),
-    not assumed from a prior session's stale finding. Deterministic tests (command construction,
-    `cpu_seconds` approximation, binary resolution, and the full `execute()` flow against a
-    monkeypatched `docker` CLI — success, nonzero exit, timeout + `docker kill`, artifact
-    collection, guaranteed cleanup) run and pass always, reaching 100% coverage without a daemon;
-    a `TestLiveDocker` class genuinely exercises a real daemon end to end on top of that (container
-    run, egress denial, bundle round-trip, artifact collection, timeout enforcement, post-run
-    cleanup) and is skipped automatically when unreachable — the same "not live-verified, validate
-    before depending on this in production" caveat
-    `OllamaAdapter`/`GitHubVCSAdapter`/`AnthropicAdapter`/`GeminiAdapter` all already carry.
+  `image` field (default `python:3.11-slim`, this project's own primary supported language) — the
+  port previously had no way to say what to run a command inside at all.
+  - **Live-verified, on a real daemon, in CI (not in this dev environment)**: this environment's
+    `docker` CLI is installed but its daemon is unreachable (`docker info` fails to connect to the
+    Docker Desktop engine) — GitHub Actions' `ubuntu-latest` runners have a real one, and
+    `TestLiveDocker` runs there on every push, unskipped. That real-daemon run is exactly what
+    caught and drove the fix for all three bugs above (`docker cp` into a read-only container,
+    tmpfs not surviving container stop, a fresh named volume's default root ownership) — none of
+    which this project's own dev environment could ever have surfaced, all three now fixed and
+    passing on real infrastructure, not merely asserted to work. Deterministic tests (command
+    construction, `cpu_seconds` approximation, binary resolution, and the full `execute()` flow
+    against a monkeypatched `docker` CLI) still run and pass always too, reaching 100% coverage
+    independent of any daemon.
   - **`EgressPolicy.ALLOW_LIST`** and the **gVisor/Firecracker tier** are deliberately not
     implemented — the former needs custom network/firewall infrastructure, the latter needs the
     `runsc`/Firecracker runtime installed and configured on the host, both unavailable

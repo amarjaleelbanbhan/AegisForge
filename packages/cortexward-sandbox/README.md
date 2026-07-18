@@ -57,19 +57,21 @@ line to the exact flags/behavior implementing it:
 - Unprivileged user (`--user 1000:1000`), `--security-opt no-new-privileges`, `--cap-drop ALL`.
 - Docker's own default seccomp/AppArmor profiles apply automatically (never disabled here).
 
-## Not live-verified in this environment
+## Live-verified on a real daemon in CI
 
-This environment's `docker` CLI is installed, but its daemon is unreachable (`docker info` fails
-to connect to the Docker Desktop engine) — the same category of gap `OllamaAdapter`
-(`cortexward-llm`) documents for its own live-server tests. `TestBuildCreateArgv`/`TestCpuLimit`
-(pure command-construction logic), the binary-resolution tests, and `TestExecuteMocked` (the full
-`execute()` flow — success, nonzero exit, timeout + `docker kill`, artifact collection, guaranteed
-cleanup — against a monkeypatched `docker` CLI, the same "mock the external tool's I/O boundary"
-convention `BanditScanner`'s/`SemgrepScanner`'s own resilience tests already use) run
-deterministically and always pass, reaching 100% coverage without a daemon. `TestLiveDocker`
-genuinely exercises a real daemon end to end on top of that (a real container run, egress denial,
-bundle round-trip, artifact collection, timeout enforcement, and post-run cleanup) and is skipped
-automatically when no daemon is reachable, exercised automatically the moment one is.
+This dev environment's `docker` CLI is installed, but its daemon is unreachable (`docker info`
+fails to connect to the Docker Desktop engine). GitHub Actions' `ubuntu-latest` runners have a
+real one, though, and `TestLiveDocker` runs there unskipped on every push — that real-daemon run
+is exactly what caught and drove the fix for three real bugs this adapter shipped with initially:
+`docker cp` unconditionally refusing to write into an already-`--read-only` container, a `--tmpfs`
+`/output` mount being torn down before retrieval could ever run, and a fresh named Docker volume
+defaulting to root ownership the unprivileged container user couldn't write to. All three are
+fixed and passing against real infrastructure now, not merely asserted to work — see
+`CHANGELOG.md` for the blow-by-blow. `TestBuildCreateArgv`/`TestCpuLimit`/`TestBuildContextTar`
+(pure logic), the binary-resolution tests, and `TestExecuteMocked` (the full `execute()` flow
+against a monkeypatched `docker` CLI, the same "mock the external tool's I/O boundary" convention
+`BanditScanner`'s/`SemgrepScanner`'s own resilience tests use) still run deterministically and
+always pass too, reaching 100% coverage independent of any daemon.
 
 ## Deliberately not implemented
 
