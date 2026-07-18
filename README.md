@@ -37,7 +37,7 @@
 <div align="center">
 <br>
 
-<img src="docs/assets/demo-terminal.svg" alt="ward scan . demo — discovers scanners, finds a SQL injection and a hardcoded credential, attaches a reachability proof, and finishes in 1.8s" width="700">
+<img src="docs/assets/demo-terminal.gif" alt="ward scan . demo — discovers scanners, finds a SQL injection and a hardcoded credential, attaches a reachability proof, and finishes in 1.8s" width="700">
 
 <sub>A real `ward scan .` run, animated — the exact command from <a href="#try-it">Try it</a> below.</sub>
 
