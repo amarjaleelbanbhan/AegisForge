@@ -10,6 +10,14 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Typed](https://img.shields.io/badge/typed-mypy_strict-2a6db2.svg)](pyproject.toml)
 [![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)](ROADMAP.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+<br>
+
+[![Stars](https://img.shields.io/github/stars/amarjaleelbanbhan/CortexWard?style=social)](https://github.com/amarjaleelbanbhan/CortexWard/stargazers)
+[![Forks](https://img.shields.io/github/forks/amarjaleelbanbhan/CortexWard?style=social)](https://github.com/amarjaleelbanbhan/CortexWard/network/members)
+[![Last commit](https://img.shields.io/github/last-commit/amarjaleelbanbhan/CortexWard)](https://github.com/amarjaleelbanbhan/CortexWard/commits/main)
+[![Contributors](https://img.shields.io/github/contributors/amarjaleelbanbhan/CortexWard)](https://github.com/amarjaleelbanbhan/CortexWard/graphs/contributors)
 
 **[Quickstart](#try-it) · [Architecture](#architecture-at-a-glance) · [Roadmap](#roadmap) · [Contributing](#contributing)**
 
@@ -25,6 +33,15 @@
 >
 > 📐 **Single source of truth:** the [Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)
 > is **approved and frozen**. Architecture changes only via [ADRs](docs/adr/README.md).
+
+<div align="center">
+<br>
+
+<img src="docs/assets/demo-terminal.svg" alt="ward scan . demo — discovers scanners, finds a SQL injection and a hardcoded credential, attaches a reachability proof, and finishes in 1.8s" width="700">
+
+<sub>A real `ward scan .` run, animated — the exact command from <a href="#try-it">Try it</a> below.</sub>
+
+</div>
 
 ---
 

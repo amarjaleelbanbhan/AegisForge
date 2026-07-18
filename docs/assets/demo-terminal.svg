@@ -1,0 +1,74 @@
+<svg width="760" height="340" viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+  <defs>
+    <clipPath id="term-rounded">
+      <rect x="0" y="0" width="760" height="340" rx="12" ry="12"/>
+    </clipPath>
+    <linearGradient id="titlebar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2f38"/>
+      <stop offset="1" stop-color="#20242b"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#term-rounded)">
+    <rect width="760" height="340" fill="#0d1117"/>
+    <rect width="760" height="36" fill="url(#titlebar)"/>
+    <circle cx="20" cy="18" r="6" fill="#ff5f56"/>
+    <circle cx="40" cy="18" r="6" fill="#ffbd2e"/>
+    <circle cx="60" cy="18" r="6" fill="#27c93f"/>
+    <text x="380" y="23" fill="#9da5b4" font-size="13" text-anchor="middle">ward scan . &#8212; zsh</text>
+
+    <g font-size="15" fill="#c9d1d9">
+      <text x="20" y="66" fill="#58a6ff">$</text>
+      <text x="38" y="66" fill="#e6edf3">
+        uv run ward scan . --format cortexward-json
+        <animate attributeName="opacity" from="0" to="1" begin="0.1s" dur="0.01s" fill="freeze"/>
+      </text>
+
+      <g opacity="0">
+        <text x="20" y="98" fill="#8b949e">&#8594; discovering scanners: bandit &#183; semgrep &#183; secrets &#183; osv</text>
+        <animate attributeName="opacity" from="0" to="1" begin="0.9s" dur="0.2s" fill="freeze"/>
+      </g>
+      <g opacity="0">
+        <text x="20" y="124" fill="#8b949e">&#8594; scanning 42 files across 3 packages&#8230;</text>
+        <animate attributeName="opacity" from="0" to="1" begin="1.5s" dur="0.2s" fill="freeze"/>
+      </g>
+
+      <g opacity="0">
+        <text x="20" y="158" fill="#f85149">&#10007; app/db.py:42</text>
+        <text x="180" y="158" fill="#e6edf3">CWE-89 SQL Injection</text>
+        <text x="600" y="158" fill="#f85149" font-weight="bold">[HIGH]</text>
+        <animate attributeName="opacity" from="0" to="1" begin="2.2s" dur="0.2s" fill="freeze"/>
+      </g>
+      <g opacity="0">
+        <text x="20" y="184" fill="#d29922">&#10007; app/auth.py:17</text>
+        <text x="180" y="184" fill="#e6edf3">CWE-798 Hardcoded Credential</text>
+        <text x="600" y="184" fill="#d29922" font-weight="bold">[LOW]</text>
+        <animate attributeName="opacity" from="0" to="1" begin="2.6s" dur="0.2s" fill="freeze"/>
+      </g>
+
+      <g opacity="0">
+        <text x="20" y="218" fill="#8b949e">&#8594; correlating findings by CWE + location&#8230; 2 unique</text>
+        <animate attributeName="opacity" from="0" to="1" begin="3.3s" dur="0.2s" fill="freeze"/>
+      </g>
+      <g opacity="0">
+        <text x="20" y="244" fill="#8b949e">&#8594; verification ladder: reachability proof attached</text>
+        <animate attributeName="opacity" from="0" to="1" begin="3.8s" dur="0.2s" fill="freeze"/>
+      </g>
+
+      <g opacity="0">
+        <text x="20" y="280" fill="#3fb950" font-weight="bold">&#10003; Done in 1.8s &#8212; 2 findings (1 high, 1 low)</text>
+        <animate attributeName="opacity" from="0" to="1" begin="4.6s" dur="0.3s" fill="freeze"/>
+      </g>
+
+      <g opacity="0">
+        <text x="20" y="312" fill="#58a6ff">$</text>
+        <animate attributeName="opacity" from="0" to="1" begin="5.2s" dur="0.2s" fill="freeze"/>
+        <rect x="38" y="299" width="9" height="16" fill="#e6edf3">
+          <animate attributeName="opacity" values="1;0;1" begin="5.2s" dur="1s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+    </g>
+  </g>
+
+  <rect x="0.5" y="0.5" width="759" height="339" rx="12" ry="12" fill="none" stroke="#30363d"/>
+</svg>
