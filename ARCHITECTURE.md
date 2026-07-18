@@ -409,21 +409,30 @@ artifacts referenced by `Evidence.artifact_ref`.
 `DockerSandboxAdapter` (`cortexward-sandbox`, new workspace package) is the first `SandboxPort`
 implementation, following MPS §22.4's normative contract as literally as a plain `docker` CLI
 invocation allows — `--network none` by default (`EgressPolicy.ALLOW_LIST` raises
-`NotImplementedError` rather than approximating it unsafely), `--read-only` root, ephemeral
-per-run containers removed in a `finally` block, `--memory`/`--memory-swap` limits,
-`wall_clock_seconds` as a hard subprocess timeout (with an explicit `docker kill` on expiry, since
-killing the local CLI client doesn't stop the container server-side), and — genuinely, not just in
-spirit — **no host mounts**: the input bundle is streamed in and any produced artifacts streamed
-back via `docker cp -` (a tar stream over the daemon API), never a `-v <host path>:...` bind mount.
+`NotImplementedError` rather than approximating it unsafely), `--read-only` root with `--tmpfs
+/tmp` and `--tmpfs /output` scratch areas, ephemeral per-run containers removed in a `finally`
+block, `--memory`/`--memory-swap` limits, `wall_clock_seconds` as a hard subprocess timeout (with
+an explicit `docker kill` on expiry, since killing the local CLI client doesn't stop the container
+server-side, and `--cpus` clamped to this host's own CPU count, not an arbitrary constant), and —
+genuinely, not just in spirit — **no host mounts**: the input bundle is delivered by *building* a
+small, ephemeral image (`docker build -`, a tar stream over the daemon API) layering the bundle
+onto `spec.image` via a synthetic Dockerfile, running that image instead of `spec.image` directly;
+produced artifacts are streamed back out via `docker cp` — never a `-v <host path>:...` bind
+mount. This bundle-delivery mechanism is a correction: the original design streamed the bundle
+into an already-created container via `docker cp -`, which was empirically found to fail against
+a real daemon — Docker unconditionally refuses to copy *into* any container whose root filesystem
+is marked read-only, an error this project's own dev environment (no reachable Docker daemon)
+couldn't have surfaced; it only appeared once exercised against GitHub Actions' real runners.
 `ExecutionSpec` gained an `image` field (default `python:3.11-slim`) the port previously had no
 way to express at all. Not live-verified in this environment: the `docker` CLI is installed but
 its daemon is unreachable (confirmed via `docker info`'s connection error) — deterministic tests
-(command construction, resource-limit math, binary resolution) always run; a `TestLiveDocker` class
-exercises a real daemon end to end and skips automatically when one isn't reachable, the same
-pattern `OllamaAdapter`'s `TestLiveOllama` already established. Not yet built: anything that
-actually *calls* `SandboxPort.execute()` from the agent pipeline (a PoC-replay/differential-test
-agent) — the adapter existing is necessary but not sufficient to reach ladder rungs 3–4, and this
-is what Phase 7's Gates B/D (§4.6) are still waiting on.
+(command construction, resource-limit math, binary resolution, and the full `execute()` flow
+against a monkeypatched `docker` CLI) always run, reaching 100% coverage without a daemon; a
+`TestLiveDocker` class exercises a real daemon end to end and skips automatically when one isn't
+reachable, the same pattern `OllamaAdapter`'s `TestLiveOllama` already established. Not yet built:
+anything that actually *calls* `SandboxPort.execute()` from the agent pipeline (a
+PoC-replay/differential-test agent) — the adapter existing is necessary but not sufficient to
+reach ladder rungs 3–4, and this is what Phase 7's Gates B/D (§4.6) are still waiting on.
 
 ### 4.6 Repair (Phase 7) — *in progress*
 

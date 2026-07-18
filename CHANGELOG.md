@@ -80,16 +80,30 @@ All notable changes to CortexWard are documented here. The format is based on
 - **`DockerSandboxAdapter`** (`cortexward-sandbox`, new workspace package): the first `SandboxPort`
   (MPS §22.4, ADR-0004) implementation. Follows the normative execution contract as literally as a
   plain `docker` CLI invocation allows: `--network none` by default (`EgressPolicy.ALLOW_LIST`
-  raises `NotImplementedError` rather than approximating it unsafely), `--read-only` root, ephemeral
-  per-run containers always removed, `--memory`/`--memory-swap` limits, `wall_clock_seconds` as a
-  hard subprocess timeout with an explicit `docker kill` on expiry, and genuinely **no host
-  mounts** — the input bundle is streamed into the container and any produced artifacts streamed
-  back out via `docker cp -` (a tar stream over the daemon API), never a bind mount. `ExecutionSpec`
-  gained an `image` field (default `python:3.11-slim`) the port previously had no way to express.
-  Not live-verified in this environment (Docker's CLI is installed but its daemon is unreachable,
-  confirmed via `docker info`'s connection error) — deterministic tests always run; a
-  `TestLiveDocker` class exercises a real daemon end to end and skips automatically otherwise,
-  matching `OllamaAdapter`'s own `TestLiveOllama` pattern. 100%-covered.
+  raises `NotImplementedError` rather than approximating it unsafely), `--read-only` root with
+  `--tmpfs /tmp`/`--tmpfs /output` scratch areas, ephemeral per-run containers (and the image built
+  to deliver the input bundle) always removed, `--memory`/`--memory-swap` limits,
+  `wall_clock_seconds` as a hard subprocess timeout with an explicit `docker kill` on expiry, and
+  genuinely **no host mounts** — the input bundle is delivered by *building* a small, ephemeral
+  image (`docker build -`, a tar stream over the daemon API) layering the bundle onto `spec.image`
+  via a synthetic Dockerfile, never a bind mount. `ExecutionSpec` gained an `image` field (default
+  `python:3.11-slim`) the port previously had no way to express. Not live-verified in this
+  environment (Docker's CLI is installed but its daemon is unreachable, confirmed via `docker
+  info`'s connection error) — deterministic tests always run, reaching 100% coverage without a
+  daemon; a `TestLiveDocker` class exercises a real daemon end to end and skips automatically
+  otherwise, matching `OllamaAdapter`'s own `TestLiveOllama` pattern.
+- **Fixed a real bug `TestLiveDocker` caught the moment CI actually had a reachable Docker daemon
+  (GitHub Actions' runners do; this project's own dev environment doesn't).** The original
+  `DockerSandboxAdapter` design streamed the input bundle into an already-`--read-only`-created
+  container via `docker cp -`; Docker's daemon unconditionally refuses to copy *into* any container
+  whose root filesystem is marked read-only ("container rootfs is marked read-only"), regardless of
+  destination path — an error only a real daemon could ever surface. Fixed by building a small,
+  ephemeral image layering the bundle onto `spec.image` (`docker build -`) instead, and running
+  that image; `_cpu_limit`'s `--cpus` upper clamp was also lowered from a hardcoded `8.0` to this
+  host's own `os.cpu_count()`, since some Docker/cgroup configurations reject a `--cpus` value
+  above the host's actual count outright. `docker create`/`docker build` failures now raise with
+  the daemon's actual decoded `stderr` text instead of a bare `subprocess.CalledProcessError`,
+  which had made the original failure needlessly hard to diagnose from CI logs alone.
 - **`LangGraphOrchestrator`** (`cortexward-orchestrator`): the LangGraph-backed `OrchestratorPort`
   adapter ADR-0002 named as its reference ("LangGraph is one adapter behind that port"). Runs the
   exact same `Agent` sequence `AgentOrchestrator` does, as a `langgraph.graph.StateGraph` instead

@@ -11,11 +11,14 @@ literally as a plain `docker` CLI invocation allows:
   to deny-all) would both violate the policy the caller actually asked for
   — raising :class:`NotImplementedError` is the honest alternative to
   either.
-- **read-only root** — ``--read-only``, with a ``--tmpfs /tmp`` scratch
-  area (a container that can write nowhere at all can't do much).
+- **read-only root** — ``--read-only``, with ``--tmpfs /tmp`` and
+  ``--tmpfs /output`` scratch areas (a container that can write nowhere at
+  all can't produce a PoC's output artifacts).
 - **ephemeral, per-run filesystem scrubbed afterward** — every container
   gets a fresh, uniquely-named instance, removed (``docker rm -f``) in a
-  ``finally`` block regardless of outcome.
+  ``finally`` block regardless of outcome; the ephemeral image built to
+  deliver the input bundle (see below) is likewise removed (``docker
+  rmi``).
 - **CPU/mem/time caps** — ``--memory``/``--memory-swap`` from
   :attr:`~cortexward.ports.ResourceLimits.memory_mb` directly;
   :attr:`~cortexward.ports.ResourceLimits.wall_clock_seconds` is enforced
@@ -26,10 +29,20 @@ literally as a plain `docker` CLI invocation allows:
   not a total-time budget) — see :func:`_cpu_limit` for the documented
   approximation used instead.
 - **no host mounts** — nothing here ever passes ``-v <host path>:...``.
-  The input bundle is streamed into the container with ``docker cp -``
-  (a tar stream over the daemon API, not a shared filesystem mount), and
-  any produced artifacts are retrieved the same way, before the
-  container is ever started.
+  The input bundle is delivered by *building* a small, ephemeral image
+  (``docker build -``, reading a tar stream over the daemon API — never a
+  local file on this host) layering the bundle onto ``spec.image`` via a
+  synthetic, cortexward-authored ``Dockerfile``, and running that image
+  instead of ``spec.image`` directly. This is *not* the original design
+  (streaming the bundle into an already-created container via ``docker cp
+  -``) — that approach was tried and empirically failed against a real
+  daemon: Docker unconditionally refuses to copy *into* any container
+  whose root filesystem is marked read-only ("container rootfs is marked
+  read-only"), regardless of the destination path, which only surfaced
+  once this was exercised against GitHub Actions' real Docker daemon (this
+  project's own dev environment has none reachable). Baking the bundle
+  into an image layer at build time sidesteps that restriction entirely,
+  while still never touching a host bind-mount.
 - **unprivileged user, `no-new-privileges`** — ``--user 1000:1000``,
   ``--security-opt no-new-privileges``, ``--cap-drop ALL``.
 - **seccomp/AppArmor baseline** — Docker applies its own default
@@ -62,6 +75,8 @@ from cortexward.ports import EgressPolicy, ExecutionResult, ExecutionSpec, Resou
 
 _WORKSPACE_PATH = "/workspace"
 _OUTPUT_PATH = "/output"
+_DOCKERFILE_PATH = ".cortexward-build/Dockerfile"
+"""Reserved path within the synthetic build-context tar (see `_build_context_tar`)."""
 
 
 @runtime_checkable
@@ -105,8 +120,16 @@ def _cpu_limit(limits: ResourceLimits) -> float:
     return max(0.1, min(ceiling, limits.cpu_seconds / limits.wall_clock_seconds))
 
 
-def build_create_argv(spec: ExecutionSpec, *, name: str, docker: str = "docker") -> tuple[str, ...]:
+def build_create_argv(
+    spec: ExecutionSpec, *, name: str, image: str | None = None, docker: str = "docker"
+) -> tuple[str, ...]:
     """The `docker create` argv for `spec`, without starting the container.
+
+    `image` overrides `spec.image` — `execute()` passes the ephemeral image
+    built from `spec.image` plus the input bundle, never `spec.image`
+    directly (that image has no bundle files in it at all). Defaults to
+    `spec.image` so callers testing flag construction in isolation don't
+    need to go through the build step.
 
     Raises `NotImplementedError` for `EgressPolicy.ALLOW_LIST` (see the
     module docstring) before constructing anything.
@@ -127,6 +150,8 @@ def build_create_argv(spec: ExecutionSpec, *, name: str, docker: str = "docker")
         "--read-only",
         "--tmpfs",
         "/tmp",  # noqa: S108 -- a mount point *inside the container*, not this host's /tmp
+        "--tmpfs",
+        _OUTPUT_PATH,
         "--memory",
         f"{spec.limits.memory_mb}m",
         "--memory-swap",
@@ -144,9 +169,41 @@ def build_create_argv(spec: ExecutionSpec, *, name: str, docker: str = "docker")
     ]
     for key, value in sorted(spec.env.items()):
         argv.extend(["--env", f"{key}={value}"])
-    argv.append(spec.image)
+    argv.append(image if image is not None else spec.image)
     argv.extend(spec.command)
     return tuple(argv)
+
+
+def _build_context_tar(image: str, bundle: bytes) -> bytes:
+    """Merges a synthetic, cortexward-authored Dockerfile with `bundle` into
+    one build-context tar, so the bundle's files land inside a real image
+    layer (baked in at build time) rather than needing `docker cp` to write
+    into an already-`--read-only` container, which Docker's daemon flatly
+    refuses (see the module docstring).
+
+    Any bundle member that collides with the reserved Dockerfile path is
+    skipped, not merged: the bundle is untrusted input (ADR-0004), and
+    letting it supply its own Dockerfile would let a malicious bundle
+    inject arbitrary `RUN` build steps with the *daemon's* own network
+    access — a build runs before the container's deny-egress policy ever
+    applies to anything.
+    """
+    dockerfile = f"FROM {image}\nCOPY . {_WORKSPACE_PATH}\nWORKDIR {_WORKSPACE_PATH}\n".encode()
+    output = BytesIO()
+    with tarfile.open(fileobj=output, mode="w") as out_tar:
+        info = tarfile.TarInfo(name=_DOCKERFILE_PATH)
+        info.size = len(dockerfile)
+        out_tar.addfile(info, BytesIO(dockerfile))
+        if bundle:
+            with tarfile.open(fileobj=BytesIO(bundle), mode="r|*") as bundle_tar:
+                for member in bundle_tar:
+                    if member.name == _DOCKERFILE_PATH or member.name.startswith(
+                        ".cortexward-build/"
+                    ):
+                        continue
+                    extracted = bundle_tar.extractfile(member) if member.isfile() else None
+                    out_tar.addfile(member, extracted)
+    return output.getvalue()
 
 
 def _decode(data: bytes | str | None) -> str:
@@ -160,10 +217,10 @@ def _decode(data: bytes | str | None) -> str:
 def _run_or_raise(argv: list[str], *, step: str, input: bytes | None = None) -> None:
     """Runs an infrastructure-setup docker command, raising with its stderr on failure.
 
-    Used only for the `create`/`cp` (bundle-in) steps that must succeed for
-    the run to mean anything at all -- unlike `_start_and_wait`, where a
-    nonzero exit is the analyzed command's own legitimate result, not an
-    infra failure. A bare `subprocess.CalledProcessError` doesn't surface
+    Used only for the `build`/`create` steps that must succeed for the run
+    to mean anything at all -- unlike `_start_and_wait`, where a nonzero
+    exit is the analyzed command's own legitimate result, not an infra
+    failure. A bare `subprocess.CalledProcessError` doesn't surface
     `stderr` in its default message, which made an earlier failure of this
     exact call needlessly hard to diagnose from CI logs alone.
     """
@@ -193,24 +250,32 @@ class DockerSandboxAdapter:
 
     def execute(self, spec: ExecutionSpec) -> ExecutionResult:
         docker = self._docker_binary()
-        argv = build_create_argv(spec, name=f"cortexward-{uuid4().hex[:16]}", docker=docker)
-        name = argv[argv.index("--name") + 1]
         bundle = self._artifacts.get_artifact(spec.input_bundle_ref)
+        image_tag = f"cortexward-build-{uuid4().hex[:16]}"
+        argv = build_create_argv(
+            spec, name=f"cortexward-{uuid4().hex[:16]}", image=image_tag, docker=docker
+        )
+        name = argv[argv.index("--name") + 1]
         started = time.monotonic()
         try:
-            _run_or_raise(list(argv), step="docker create")
             _run_or_raise(
-                [docker, "cp", "-", f"{name}:{_WORKSPACE_PATH}"],
-                step="docker cp (input bundle)",
-                input=bundle,
+                [docker, "build", "-f", _DOCKERFILE_PATH, "-t", image_tag, "-"],
+                step="docker build",
+                input=_build_context_tar(spec.image, bundle),
             )
-            exit_code, stdout, stderr, timed_out = self._start_and_wait(
-                docker, name, spec.limits.wall_clock_seconds
-            )
-            artifact_refs = self._collect_artifacts(docker, name)
+            try:
+                _run_or_raise(list(argv), step="docker create")
+                exit_code, stdout, stderr, timed_out = self._start_and_wait(
+                    docker, name, spec.limits.wall_clock_seconds
+                )
+                artifact_refs = self._collect_artifacts(docker, name)
+            finally:
+                subprocess.run(  # noqa: S603 # nosec B603
+                    [docker, "rm", "-f", name], capture_output=True, check=False
+                )
         finally:
             subprocess.run(  # noqa: S603 # nosec B603
-                [docker, "rm", "-f", name], capture_output=True, check=False
+                [docker, "rmi", "-f", image_tag], capture_output=True, check=False
             )
         return ExecutionResult(
             exit_code=exit_code,

