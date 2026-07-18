@@ -409,22 +409,28 @@ artifacts referenced by `Evidence.artifact_ref`.
 `DockerSandboxAdapter` (`cortexward-sandbox`, new workspace package) is the first `SandboxPort`
 implementation, following MPS §22.4's normative contract as literally as a plain `docker` CLI
 invocation allows — `--network none` by default (`EgressPolicy.ALLOW_LIST` raises
-`NotImplementedError` rather than approximating it unsafely), `--read-only` root with `--tmpfs
-/tmp` and `--tmpfs /output` scratch areas, ephemeral per-run containers removed in a `finally`
-block, `--memory`/`--memory-swap` limits, `wall_clock_seconds` as a hard subprocess timeout (with
-an explicit `docker kill` on expiry, since killing the local CLI client doesn't stop the container
+`NotImplementedError` rather than approximating it unsafely), `--read-only` root with a `--tmpfs
+/tmp` scratch area and a *named Docker volume* (not a tmpfs) mounted at `/output` — tmpfs mounts
+are torn down the instant a container stops, before this adapter ever gets to `docker cp` the
+produced files back out, confirmed empirically against a real daemon; a named volume is
+daemon-managed storage independent of any one container's lifecycle — ephemeral per-run containers
+removed in a `finally` block alongside the named output volume (`docker volume rm -f`),
+`--memory`/`--memory-swap` limits, `wall_clock_seconds` as a hard subprocess timeout (with an
+explicit `docker kill` on expiry, since killing the local CLI client doesn't stop the container
 server-side, and `--cpus` clamped to this host's own CPU count, not an arbitrary constant), and —
-genuinely, not just in spirit — **no host mounts**: the input bundle is delivered by *building* a
-small, ephemeral image (`docker build -`, a tar stream over the daemon API) layering the bundle
-onto `spec.image` via a synthetic Dockerfile, running that image instead of `spec.image` directly;
+genuinely, not just in spirit — **no host mounts**: the `/output` volume is opaque daemon-managed
+storage, never a real host directory; the input bundle is delivered by *building* a small,
+ephemeral image (`docker build -`, a tar stream over the daemon API) layering the bundle onto
+`spec.image` via a synthetic Dockerfile, running that image instead of `spec.image` directly;
 produced artifacts are streamed back out via `docker cp` — never a `-v <host path>:...` bind
-mount. This bundle-delivery mechanism is a correction: the original design streamed the bundle
-into an already-created container via `docker cp -`, which was empirically found to fail against
-a real daemon — Docker unconditionally refuses to copy *into* any container whose root filesystem
-is marked read-only, an error this project's own dev environment (no reachable Docker daemon)
-couldn't have surfaced; it only appeared once exercised against GitHub Actions' real runners.
-`ExecutionSpec` gained an `image` field (default `python:3.11-slim`) the port previously had no
-way to express at all. Not live-verified in this environment: the `docker` CLI is installed but
+mount. Both the build-based bundle delivery and the named-volume output mount are corrections: the
+original design streamed the bundle into an already-created container via `docker cp -` (Docker
+unconditionally refuses to copy *into* any read-only-marked container) and used a tmpfs for
+`/output` (torn down before retrieval could succeed) — both errors this project's own dev
+environment (no reachable Docker daemon) couldn't have surfaced; both only appeared once exercised
+against GitHub Actions' real runners. `ExecutionSpec` gained an `image` field (default
+`python:3.11-slim`) the port previously had no way to express at all. Not live-verified in this
+environment: the `docker` CLI is installed but
 its daemon is unreachable (confirmed via `docker info`'s connection error) — deterministic tests
 (command construction, resource-limit math, binary resolution, and the full `execute()` flow
 against a monkeypatched `docker` CLI) always run, reaching 100% coverage without a daemon; a

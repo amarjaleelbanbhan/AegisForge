@@ -27,6 +27,7 @@ from cortexward.sandbox.docker_adapter import (
     _DOCKERFILE_PATH,
     _build_context_tar,
     _cpu_limit,
+    _output_volume_name,
     build_create_argv,
 )
 
@@ -135,7 +136,7 @@ def _make_fake_run(
             if output_tar is None:
                 return _FakeCompletedProcess(returncode=1)  # /output doesn't exist
             return _FakeCompletedProcess(returncode=0, stdout=output_tar)
-        if subcommand in ("kill", "rm", "rmi"):
+        if subcommand in ("kill", "rm", "rmi", "volume"):
             return _FakeCompletedProcess(returncode=0)
         raise AssertionError(f"unexpected docker subcommand: {argv}")
 
@@ -160,6 +161,14 @@ class TestCpuLimit:
         assert _cpu_limit(limits) == 1.0
 
 
+class TestOutputVolumeName:
+    def test_derived_deterministically_from_the_container_name(self) -> None:
+        assert _output_volume_name("cortexward-abc123") == "cortexward-abc123-output"
+
+    def test_different_containers_get_different_volumes(self) -> None:
+        assert _output_volume_name("c1") != _output_volume_name("c2")
+
+
 class TestBuildCreateArgv:
     def test_deny_all_produces_the_expected_isolation_flags(self) -> None:
         argv = build_create_argv(_spec(), name="c1")
@@ -168,8 +177,9 @@ class TestBuildCreateArgv:
         assert "--read-only" in argv
         assert "--tmpfs" in argv
         assert argv[argv.index("--tmpfs") + 1] == "/tmp"  # noqa: S108
-        assert argv.count("--tmpfs") == 2
-        assert "/output" in argv
+        assert argv.count("--tmpfs") == 1
+        assert "--volume" in argv
+        assert argv[argv.index("--volume") + 1] == "c1-output:/output"
         assert "no-new-privileges" in argv
         assert "--cap-drop" in argv
         assert argv[argv.index("--cap-drop") + 1] == "ALL"
@@ -380,6 +390,7 @@ class TestExecuteMocked:
             adapter.execute(_spec(bundle_ref=bundle_ref))
         subcommands = [call[1] for call in calls]
         assert "rm" not in subcommands
+        assert "volume" not in subcommands
         assert "rmi" in subcommands
 
     def test_a_successful_run_returns_its_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -503,11 +514,12 @@ class TestExecuteMocked:
         result = adapter.execute(_spec(bundle_ref=bundle_ref))
         assert result.artifact_refs == ()
 
-    def test_the_container_and_built_image_are_always_removed_even_on_failure(
+    def test_the_container_image_and_output_volume_are_always_removed_even_on_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         rm_calls: list[list[str]] = []
         rmi_calls: list[list[str]] = []
+        volume_rm_calls: list[list[str]] = []
         fake_run = _make_fake_run()
 
         def _tracking_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
@@ -515,6 +527,8 @@ class TestExecuteMocked:
                 rm_calls.append(argv)
             elif argv[1] == "rmi":
                 rmi_calls.append(argv)
+            elif argv[1] == "volume":
+                volume_rm_calls.append(argv)
             return fake_run(argv, **kwargs)
 
         monkeypatch.setattr(subprocess, "run", _tracking_run)
@@ -528,6 +542,10 @@ class TestExecuteMocked:
         assert len(rmi_calls) == 1
         assert rmi_calls[0][0] == "/fake/docker"
         assert "-f" in rmi_calls[0]
+        assert len(volume_rm_calls) == 1
+        assert volume_rm_calls[0][0] == "/fake/docker"
+        assert volume_rm_calls[0][2] == "rm"
+        assert "-f" in volume_rm_calls[0]
 
 
 @pytest.mark.skipif(not _docker_daemon_reachable(), reason="no local Docker daemon reachable")

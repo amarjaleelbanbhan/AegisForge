@@ -11,14 +11,22 @@ literally as a plain `docker` CLI invocation allows:
   to deny-all) would both violate the policy the caller actually asked for
   — raising :class:`NotImplementedError` is the honest alternative to
   either.
-- **read-only root** — ``--read-only``, with ``--tmpfs /tmp`` and
-  ``--tmpfs /output`` scratch areas (a container that can write nowhere at
-  all can't produce a PoC's output artifacts).
+- **read-only root** — ``--read-only``, with a ``--tmpfs /tmp`` scratch
+  area and a named Docker volume (not a tmpfs) mounted at ``/output`` (a
+  container that can write nowhere at all can't produce a PoC's output
+  artifacts). ``/output`` is deliberately *not* a tmpfs like ``/tmp``:
+  tmpfs mounts are torn down the moment a container stops, before this
+  adapter ever gets a chance to ``docker cp`` the produced files back out
+  — confirmed empirically (a real container run, on a real daemon,
+  produced a file at ``/output`` and exited 0, yet the subsequent
+  retrieval came back with zero artifacts every time). A named volume is
+  daemon-managed storage independent of any one container's lifecycle, so
+  it survives exactly as long as this adapter needs it to and no longer.
 - **ephemeral, per-run filesystem scrubbed afterward** — every container
   gets a fresh, uniquely-named instance, removed (``docker rm -f``) in a
   ``finally`` block regardless of outcome; the ephemeral image built to
-  deliver the input bundle (see below) is likewise removed (``docker
-  rmi``).
+  deliver the input bundle and the named output volume (see above) are
+  likewise removed (``docker rmi`` / ``docker volume rm``).
 - **CPU/mem/time caps** — ``--memory``/``--memory-swap`` from
   :attr:`~cortexward.ports.ResourceLimits.memory_mb` directly;
   :attr:`~cortexward.ports.ResourceLimits.wall_clock_seconds` is enforced
@@ -28,21 +36,24 @@ literally as a plain `docker` CLI invocation allows:
   direct Docker equivalent (Docker's ``--cpus`` is a consumption *rate*,
   not a total-time budget) — see :func:`_cpu_limit` for the documented
   approximation used instead.
-- **no host mounts** — nothing here ever passes ``-v <host path>:...``.
-  The input bundle is delivered by *building* a small, ephemeral image
-  (``docker build -``, reading a tar stream over the daemon API — never a
-  local file on this host) layering the bundle onto ``spec.image`` via a
-  synthetic, cortexward-authored ``Dockerfile``, and running that image
-  instead of ``spec.image`` directly. This is *not* the original design
-  (streaming the bundle into an already-created container via ``docker cp
-  -``) — that approach was tried and empirically failed against a real
-  daemon: Docker unconditionally refuses to copy *into* any container
-  whose root filesystem is marked read-only ("container rootfs is marked
-  read-only"), regardless of the destination path, which only surfaced
-  once this was exercised against GitHub Actions' real Docker daemon (this
-  project's own dev environment has none reachable). Baking the bundle
-  into an image layer at build time sidesteps that restriction entirely,
-  while still never touching a host bind-mount.
+- **no host mounts** — nothing here ever passes ``-v <host path>:...``; the
+  ``/output`` volume above is a *named* Docker volume (``-v
+  <generated-name>:/output``), daemon-managed opaque storage, never a real
+  host directory. The input bundle is delivered by *building* a small,
+  ephemeral image (``docker build -``, reading a tar stream over the
+  daemon API — never a local file on this host) layering the bundle onto
+  ``spec.image`` via a synthetic, cortexward-authored ``Dockerfile``, and
+  running that image instead of ``spec.image`` directly. This is *not*
+  the original design (streaming the bundle into an already-created
+  container via ``docker cp -``) — that approach was tried and
+  empirically failed against a real daemon: Docker unconditionally
+  refuses to copy *into* any container whose root filesystem is marked
+  read-only ("container rootfs is marked read-only"), regardless of the
+  destination path, which only surfaced once this was exercised against
+  GitHub Actions' real Docker daemon (this project's own dev environment
+  has none reachable). Baking the bundle into an image layer at build
+  time sidesteps that restriction entirely, while still never touching a
+  host bind-mount.
 - **unprivileged user, `no-new-privileges`** — ``--user 1000:1000``,
   ``--security-opt no-new-privileges``, ``--cap-drop ALL``.
 - **seccomp/AppArmor baseline** — Docker applies its own default
@@ -94,6 +105,16 @@ class ArtifactStore(Protocol):
 
     def get_artifact(self, ref: str) -> bytes: ...
     def put_artifact(self, content: bytes) -> str: ...
+
+
+def _output_volume_name(container_name: str) -> str:
+    """The named Docker volume backing `/output` for a given container.
+
+    Derived deterministically from the container's own name so `execute()`
+    doesn't need to separately track and thread a second generated
+    identifier through create/collect/cleanup.
+    """
+    return f"{container_name}-output"
 
 
 def _cpu_limit(limits: ResourceLimits) -> float:
@@ -150,8 +171,8 @@ def build_create_argv(
         "--read-only",
         "--tmpfs",
         "/tmp",  # noqa: S108 -- a mount point *inside the container*, not this host's /tmp
-        "--tmpfs",
-        _OUTPUT_PATH,
+        "--volume",
+        f"{_output_volume_name(name)}:{_OUTPUT_PATH}",
         "--memory",
         f"{spec.limits.memory_mb}m",
         "--memory-swap",
@@ -256,6 +277,7 @@ class DockerSandboxAdapter:
             spec, name=f"cortexward-{uuid4().hex[:16]}", image=image_tag, docker=docker
         )
         name = argv[argv.index("--name") + 1]
+        output_volume = _output_volume_name(name)
         started = time.monotonic()
         try:
             _run_or_raise(
@@ -272,6 +294,9 @@ class DockerSandboxAdapter:
             finally:
                 subprocess.run(  # noqa: S603 # nosec B603
                     [docker, "rm", "-f", name], capture_output=True, check=False
+                )
+                subprocess.run(  # noqa: S603 # nosec B603
+                    [docker, "volume", "rm", "-f", output_volume], capture_output=True, check=False
                 )
         finally:
             subprocess.run(  # noqa: S603 # nosec B603

@@ -369,26 +369,34 @@ PoC artifacts, and VEX output.
   ALLOW_LIST` raises `NotImplementedError` — genuinely restricting egress to specific hosts needs a
   custom Docker network plus firewall/DNS rules this adapter doesn't build, and silently granting
   more or less access than requested would both violate the policy actually requested);
-  `--read-only` root with `--tmpfs /tmp` and `--tmpfs /output` scratch areas; every container
-  uniquely named and removed (`docker rm -f`) in a `finally` block regardless of outcome;
-  `--memory`/`--memory-swap` from `ResourceLimits.memory_mb` directly; `wall_clock_seconds` as a
-  hard subprocess timeout with an explicit `docker kill` on expiry (killing the local `docker` CLI
-  client does not by itself stop the container running server-side); `cpu_seconds` approximated as
-  a `--cpus` rate over the wall-clock window, clamped to this host's own CPU count (some Docker
-  daemon/cgroup configurations reject a `--cpus` value above the host's actual count outright, not
-  merely cap the effective rate); `--user 1000:1000`, `--security-opt no-new-privileges`,
-  `--cap-drop ALL`; Docker's own default seccomp/AppArmor profiles apply automatically (never
-  disabled). **No host mounts, genuinely**: the input bundle is delivered by *building* a small,
-  ephemeral image (`docker build -`, a tar stream over the daemon API) that layers the bundle onto
-  `spec.image` via a synthetic, cortexward-authored Dockerfile, running that image instead of
-  `spec.image` directly; any produced artifacts are streamed back out via `docker cp` after the
-  container runs — never a `-v <host path>:...` bind mount, which the port's own `no host mounts`
-  requirement rules out literally, not just in spirit. This is a correction, not the original
-  design: streaming the bundle into an already-created container via `docker cp -` was tried first
-  and empirically failed against a real daemon (GitHub Actions' runners have one; this project's
-  own dev environment doesn't) — Docker unconditionally refuses to copy *into* any container whose
-  root filesystem is marked read-only, regardless of destination path, an error only a real daemon
-  ever surfaces. `ExecutionSpec` gained an `image` field (default `python:3.11-slim`, this
+  `--read-only` root with a `--tmpfs /tmp` scratch area and a *named Docker volume* mounted at
+  `/output` — deliberately not a second tmpfs: tmpfs mounts are torn down the instant a container
+  stops, before this adapter ever gets to `docker cp` the produced files back out, confirmed
+  empirically against a real daemon (a container wrote to `/output` and exited 0, yet retrieval
+  always came back empty until the volume fix). A named volume is daemon-managed storage
+  independent of any one container's lifecycle. Every container uniquely named and removed
+  (`docker rm -f`) in a `finally` block regardless of outcome, alongside the named output volume
+  (`docker volume rm -f`); `--memory`/`--memory-swap` from `ResourceLimits.memory_mb` directly;
+  `wall_clock_seconds` as a hard subprocess timeout with an explicit `docker kill` on expiry
+  (killing the local `docker` CLI client does not by itself stop the container running
+  server-side); `cpu_seconds` approximated as a `--cpus` rate over the wall-clock window, clamped
+  to this host's own CPU count (some Docker daemon/cgroup configurations reject a `--cpus` value
+  above the host's actual count outright, not merely cap the effective rate); `--user 1000:1000`,
+  `--security-opt no-new-privileges`, `--cap-drop ALL`; Docker's own default seccomp/AppArmor
+  profiles apply automatically (never disabled). **No host mounts, genuinely**: the `/output`
+  volume is a *named* volume (opaque daemon-managed storage, never a real host directory); the
+  input bundle is delivered by *building* a small, ephemeral image (`docker build -`, a tar stream
+  over the daemon API) that layers the bundle onto `spec.image` via a synthetic,
+  cortexward-authored Dockerfile, running that image instead of `spec.image` directly; produced
+  artifacts are streamed back out via `docker cp` after the container runs — never a `-v <host
+  path>:...` bind mount, which the port's own `no host mounts` requirement rules out literally,
+  not just in spirit. Both the build-based bundle delivery and the named-volume output mount are
+  corrections, not the original design: the original streamed the bundle into an already-created
+  container via `docker cp -` (Docker unconditionally refuses to copy *into* any read-only-marked
+  container, regardless of destination path) and used a tmpfs for `/output` (torn down before
+  retrieval could ever succeed) — both errors only a real Docker daemon could surface, and this
+  project's own dev environment has none reachable; both were caught by GitHub Actions' real
+  runners once pushed. `ExecutionSpec` gained an `image` field (default `python:3.11-slim`, this
   project's own primary supported language) — the port previously had no way to say what to run a
   command inside at all.
   - **Not live-verified in this environment**: this environment's `docker` CLI is installed, but

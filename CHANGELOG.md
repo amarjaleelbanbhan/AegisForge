@@ -81,8 +81,10 @@ All notable changes to CortexWard are documented here. The format is based on
   (MPS §22.4, ADR-0004) implementation. Follows the normative execution contract as literally as a
   plain `docker` CLI invocation allows: `--network none` by default (`EgressPolicy.ALLOW_LIST`
   raises `NotImplementedError` rather than approximating it unsafely), `--read-only` root with
-  `--tmpfs /tmp`/`--tmpfs /output` scratch areas, ephemeral per-run containers (and the image built
-  to deliver the input bundle) always removed, `--memory`/`--memory-swap` limits,
+  a `--tmpfs /tmp` scratch area and a named Docker volume (not a tmpfs — those are torn down the
+  instant a container stops, before retrieval could ever succeed) mounted at `/output`, ephemeral
+  per-run containers (and the image built to deliver the input bundle, and the named output
+  volume) always removed, `--memory`/`--memory-swap` limits,
   `wall_clock_seconds` as a hard subprocess timeout with an explicit `docker kill` on expiry, and
   genuinely **no host mounts** — the input bundle is delivered by *building* a small, ephemeral
   image (`docker build -`, a tar stream over the daemon API) layering the bundle onto `spec.image`
@@ -104,6 +106,13 @@ All notable changes to CortexWard are documented here. The format is based on
   above the host's actual count outright. `docker create`/`docker build` failures now raise with
   the daemon's actual decoded `stderr` text instead of a bare `subprocess.CalledProcessError`,
   which had made the original failure needlessly hard to diagnose from CI logs alone.
+- **Fixed a second real bug the same CI daemon caught immediately after the first fix landed:**
+  `/output` was originally a `--tmpfs` mount, but tmpfs mounts are torn down the instant a
+  container stops — a real run wrote its output file and exited 0, yet artifact retrieval came
+  back empty every time, since `_collect_artifacts()`'s `docker cp` only runs after the container
+  has already finished. Fixed by mounting `/output` as a named Docker volume instead (still no
+  host mount — a named volume is opaque, daemon-managed storage), which survives independently of
+  the container's own lifecycle; the volume is now also removed in the cleanup `finally` block.
 - **`LangGraphOrchestrator`** (`cortexward-orchestrator`): the LangGraph-backed `OrchestratorPort`
   adapter ADR-0002 named as its reference ("LangGraph is one adapter behind that port"). Runs the
   exact same `Agent` sequence `AgentOrchestrator` does, as a `langgraph.graph.StateGraph` instead
