@@ -4,5 +4,6 @@ from __future__ import annotations
 
 from cortexward.reporters.json_reporter import JsonReporter
 from cortexward.reporters.sarif import SarifReporter
+from cortexward.reporters.vex import CycloneDxVexReporter
 
-__all__ = ["JsonReporter", "SarifReporter"]
+__all__ = ["CycloneDxVexReporter", "JsonReporter", "SarifReporter"]

@@ -161,6 +161,17 @@ All notable changes to CortexWard are documented here. The format is based on
   splits (memorized/post-cutoff/mutated) remain unbuilt — a "mutated" split needs
   vulnerability-preserving mutation operators, which the MPS's own Open Questions (§30) name as
   unresolved. 100%-covered.
+- **`CycloneDxVexReporter`** (`cortexward-reporters`): the VEX output MPS FR-7 requires
+  ("CycloneDX-VEX/CSAF-VEX"). Renders a CycloneDX 1.5 VEX document per `Finding`, computing
+  `analysis.state` by calling `cortexward.domain.verification.assess()` (the same pure function
+  everything else in this framework uses) and mapping the resulting `VexStatus` onto CycloneDX's
+  own enum. Registered as `cyclonedx-vex`; selectable via `ward scan --format cyclonedx-vex` with
+  zero CLI code changes. 100%-covered.
+- **`ward scan --engine {agent,langgraph}`**: `build_pipeline()` gained an `engine` parameter
+  selecting which `OrchestratorPort` runs the agent sequence when an LLM is configured, closing the
+  gap `LangGraphOrchestrator`'s own changelog entry above left open ("not wired into
+  `build_pipeline()`/`ward scan`"). Default (`"agent"`) is byte-for-byte the prior behavior.
+  100%-covered.
 - **Trust-boundary modeling** (`Threat.crosses_trust_boundary`, MPS Phase 5): MPS §22.1's
   untrusted-zone/trusted-control-plane split, generalized from describing CortexWard's own
   architecture to an analyzed target's — a known entry point stands in for that target's untrusted

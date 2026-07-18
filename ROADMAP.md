@@ -207,7 +207,7 @@ Built before advanced agents so every later feature is measured
   Questions (§30) name as an unresolved research question ("Mutation operators that are provably
   vulnerability-preserving"), not a decision this project can infer or invent unilaterally.
 
-## Phase 4 — Agent framework 🚧
+## Phase 4 — Agent framework ✅
 Orchestrator (behind `OrchestratorPort`; LangGraph adapter) and agents (Planner, Scanner,
 Verifier, Repair, Reviewer, Coordinator, Memory), an `LLMPort` with pluggable backends, and a
 cost-aware model router.
@@ -332,11 +332,16 @@ cost-aware model router.
   `StateGraph.add_node`'s generic overload set fails to match a `Callable[[State], State]`-typed
   value but resolves a literal nested `def` (whose type mypy infers structurally) without issue —
   worked around by defining each node inline rather than via a small factory function, documented
-  in the source rather than silenced with a blanket `type: ignore`. Not wired into
-  `build_pipeline()`/`ward scan` — exposing a third execution-engine choice through the CLI is a
-  delivery-surface decision this package doesn't make unilaterally; `LangGraphOrchestrator` is
-  available today for any caller that constructs an `OrchestratorPort` directly. 100%-covered,
-  mirroring `AgentOrchestrator`'s own test suite closely to prove behavioral equivalence.
+  in the source rather than silenced with a blanket `type: ignore`. 100%-covered, mirroring
+  `AgentOrchestrator`'s own test suite closely to prove behavioral equivalence.
+- ✅ **`LangGraphOrchestrator` wired into `build_pipeline()`/`ward scan`**: `build_pipeline()`
+  gained an `engine: Literal["agent", "langgraph"]` parameter (default `"agent"`, matching prior
+  behavior exactly) selecting which `OrchestratorPort` runs the identical `default_agents()`
+  sequence when an LLM is configured — `AgentOrchestrator` or `LangGraphOrchestrator`, ADR-0002's
+  own "freedom to swap... without touching agents or domain" made concretely selectable rather than
+  only available to a caller constructing a port directly. `ward scan --engine langgraph` exposes
+  it; ignored (and undocumented as mattering) without `--llm-provider`/`--llm-config`, matching
+  `--reachability`'s own scoping. 100%-covered.
 
 ## Phase 5 — Threat & architecture reasoning 🚧
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis
@@ -448,10 +453,29 @@ PoC artifacts, and VEX output.
     implemented — the former needs custom network/firewall infrastructure, the latter needs the
     `runsc`/Firecracker runtime installed and configured on the host, both unavailable
     infrastructure in any environment this project has verified against.
+- ✅ **VEX output** (`cortexward-reporters`): `CycloneDxVexReporter` (`format_id = "cyclonedx-vex"`,
+  MPS FR-7's "CycloneDX-VEX/CSAF-VEX") renders a CycloneDX 1.5 VEX document — one `vulnerabilities`
+  entry per `Finding`, its `analysis.state` derived by calling
+  `cortexward.domain.verification.assess()` (the same pure, deterministic assessment function
+  everything else in this framework uses) and mapping the resulting `VexStatus` onto CycloneDX's
+  own `analysis.state` enum (`AFFECTED` → `"exploitable"`, `NOT_AFFECTED` → `"not_affected"`,
+  `FIXED` → `"resolved"`, `UNDER_INVESTIGATION` → `"in_triage"` — a documented, one-directional
+  translation, not a lossless round-trip). CycloneDX was chosen over CSAF because it needs no
+  product/component data model this project doesn't otherwise build (CSAF requires a full
+  `product_tree`). Registered under `cortexward.reporters` as `cyclonedx-vex`; selectable via
+  `ward scan --format cyclonedx-vex` with zero CLI code changes, the same plugin-registry
+  discovery `--format cortexward-json` already used. 100%-covered, verified with a real end-to-end
+  `ward scan` producing a valid document.
 - ⏳ Wiring `DockerSandboxAdapter` into an actual PoC-replay/differential-test agent (reaching
   Verification Ladder rungs 3-4, and unblocking Phase 7's Gates B/D below) — the adapter exists,
-  but nothing yet calls `SandboxPort.execute()` from the agent pipeline. False-positive reduction
-  and VEX output remain unbuilt.
+  but nothing yet calls `SandboxPort.execute()` from the agent pipeline. This needs its own design
+  (how a target's test suite is invoked generically across ecosystems; where a PoC's own
+  reproduction command comes from, given no producer of `EvidenceKind.EXPLOIT_POC` evidence exists
+  yet either) — not a missing decision this project can't make, but a nontrivial feature not yet
+  built. False-positive reduction remains unbuilt: MPS gives no concrete mechanism beyond what the
+  Verification Ladder's refutation evidence and confidence thresholds already provide (see
+  `cortexward.domain.verification`), so a distinct "false-positive reduction" capability needs its
+  own concrete spec before it's implementable, the same gap Phase 5's business-logic analysis has.
 
 ## Phase 7 — Patch generation 🚧
 Minimal-diff automated repair with the three-gate validation (tests pass · rescan clean ·

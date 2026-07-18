@@ -8,7 +8,7 @@ import pytest
 
 from cortexward.agents import AgentOrchestrator
 from cortexward.llm import LLMProviderConfig, Provider
-from cortexward.orchestrator import SequentialOrchestrator, build_pipeline
+from cortexward.orchestrator import LangGraphOrchestrator, SequentialOrchestrator, build_pipeline
 from cortexward.ports import OrchestratorPort
 
 pytestmark = pytest.mark.unit
@@ -40,3 +40,17 @@ class TestBuildPipeline:
             llm_config=config, root=tmp_path, languages=("python",), reachability=True
         )
         assert isinstance(orchestrator, AgentOrchestrator)
+
+    def test_default_engine_is_agent_orchestrator(self, tmp_path: Path) -> None:
+        config = LLMProviderConfig(provider=Provider.OLLAMA, model="qwen2.5-coder:7b")
+        orchestrator = build_pipeline(llm_config=config, root=tmp_path)
+        assert isinstance(orchestrator, AgentOrchestrator)
+
+    def test_langgraph_engine_returns_a_langgraph_orchestrator(self, tmp_path: Path) -> None:
+        config = LLMProviderConfig(provider=Provider.OLLAMA, model="qwen2.5-coder:7b")
+        orchestrator = build_pipeline(llm_config=config, root=tmp_path, engine="langgraph")
+        assert isinstance(orchestrator, LangGraphOrchestrator)
+
+    def test_engine_is_ignored_without_an_llm_config(self, tmp_path: Path) -> None:
+        orchestrator = build_pipeline(llm_config=None, root=tmp_path, engine="langgraph")
+        assert isinstance(orchestrator, SequentialOrchestrator)

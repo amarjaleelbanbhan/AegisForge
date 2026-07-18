@@ -37,7 +37,7 @@ from cortexward.cli.baseline import filter_baseline, load_baseline, write_baseli
 from cortexward.cli.bench import bench_app
 from cortexward.domain import Severity
 from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, load_llm_config
-from cortexward.orchestrator import build_pipeline, build_threat_model_for
+from cortexward.orchestrator import Engine, build_pipeline, build_threat_model_for
 from cortexward.plugins.groups import PluginGroup
 from cortexward.plugins.registry import PluginNotFoundError, registry_for
 from cortexward.ports import AnalysisRequest, ReporterPort
@@ -65,6 +65,15 @@ app.add_typer(bench_app, name="bench")
 
 
 _FAIL_ON_CHOICES = ("none", "low", "medium", "high", "critical")
+_ENGINE_CHOICES = ("agent", "langgraph")
+
+
+def _resolve_engine(engine: str) -> Engine:
+    if engine not in _ENGINE_CHOICES:
+        raise typer.BadParameter(
+            f"invalid --engine value {engine!r}; expected one of: {', '.join(_ENGINE_CHOICES)}"
+        )
+    return cast("Engine", engine)
 
 
 def _severity_threshold(fail_on: str) -> Severity | None:
@@ -144,8 +153,9 @@ def scan(
         typer.Option(
             "--format",
             help=(
-                "Report format to render: 'sarif' (default) or 'cortexward-json' "
-                "(the full finding, including verification evidence, that SARIF can't express)."
+                "Report format to render: 'sarif' (default), 'cortexward-json' "
+                "(the full finding, including verification evidence, that SARIF can't express), "
+                "or 'cyclonedx-vex' (per-finding exploitability status, MPS FR-7)."
             ),
         ),
     ] = "sarif",
@@ -205,6 +215,17 @@ def scan(
             help="With an LLM provider configured, also attach control-flow reachability evidence.",
         ),
     ] = True,
+    engine: Annotated[
+        str,
+        typer.Option(
+            "--engine",
+            help=(
+                "With an LLM provider configured, which OrchestratorPort runs the agent "
+                f"sequence: {', '.join(_ENGINE_CHOICES)} (ADR-0002). "
+                "Ignored without --llm-provider."
+            ),
+        ),
+    ] = "agent",
     baseline: Annotated[
         Path | None,
         typer.Option(
@@ -236,6 +257,7 @@ def scan(
         root=resolved_root,
         languages=tuple(language),
         reachability=reachability,
+        engine=_resolve_engine(engine),
     )
     request = AnalysisRequest(root=resolved_root, languages=tuple(language))
     result = orchestrator.run(request)

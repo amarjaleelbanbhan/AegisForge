@@ -37,6 +37,7 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 [project.entry-points."cortexward.reporters"]
 sarif = "cortexward.reporters.sarif:SarifReporter"
 cortexward-json = "cortexward.reporters.json_reporter:JsonReporter"
+cyclonedx-vex = "cortexward.reporters.vex:CycloneDxVexReporter"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }

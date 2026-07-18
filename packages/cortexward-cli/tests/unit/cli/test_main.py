@@ -273,6 +273,41 @@ class TestLlmVerification:
         assert llm_config.provider == Provider.OLLAMA
         assert llm_config.model == "qwen2.5-coder:7b"
 
+    def test_invalid_engine_is_rejected(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--engine", "not-a-real-engine"])
+        assert result.exit_code != 0
+
+    def test_default_engine_is_agent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _write_clean_file(tmp_path)
+        captured: dict[str, object] = {}
+
+        def _fake_build_pipeline(**kwargs: object) -> SequentialOrchestrator:
+            captured.update(kwargs)
+            return SequentialOrchestrator(scanners=())
+
+        monkeypatch.setattr(_cli_main_module, "build_pipeline", _fake_build_pipeline)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--fail-on", "none"])
+        assert result.exit_code == 0
+        assert captured["engine"] == "agent"
+
+    def test_engine_langgraph_is_passed_through(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_clean_file(tmp_path)
+        captured: dict[str, object] = {}
+
+        def _fake_build_pipeline(**kwargs: object) -> SequentialOrchestrator:
+            captured.update(kwargs)
+            return SequentialOrchestrator(scanners=())
+
+        monkeypatch.setattr(_cli_main_module, "build_pipeline", _fake_build_pipeline)
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--fail-on", "none", "--engine", "langgraph"]
+        )
+        assert result.exit_code == 0
+        assert captured["engine"] == "langgraph"
+
     @pytest.mark.integration
     @pytest.mark.skipif(not _ollama_is_running(), reason="no local Ollama server reachable")
     def test_llm_provider_ollama_runs_the_agent_pipeline_end_to_end(self, tmp_path: Path) -> None:
