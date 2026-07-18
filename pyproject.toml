@@ -48,6 +48,8 @@ src = [
   "packages/cortexward-agents/src", "packages/cortexward-agents/tests",
   "packages/cortexward-server/src", "packages/cortexward-server/tests",
   "packages/cortexward-vcs/src", "packages/cortexward-vcs/tests",
+  "packages/cortexward-storage/src", "packages/cortexward-storage/tests",
+  "packages/cortexward-sandbox/src", "packages/cortexward-sandbox/tests",
 ]
 
 [tool.ruff.lint]
@@ -108,6 +110,8 @@ mypy_path = [
   "packages/cortexward-agents/src",
   "packages/cortexward-server/src",
   "packages/cortexward-vcs/src",
+  "packages/cortexward-storage/src",
+  "packages/cortexward-sandbox/src",
 ]
 
 [[tool.mypy.overrides]]
@@ -141,6 +145,8 @@ testpaths = [
   "packages/cortexward-agents/tests",
   "packages/cortexward-server/tests",
   "packages/cortexward-vcs/tests",
+  "packages/cortexward-storage/tests",
+  "packages/cortexward-sandbox/tests",
 ]
 markers = [
   "unit: fast, isolated unit tests",
@@ -349,6 +355,44 @@ forbidden_modules = [
   "cortexward.orchestrator",
   "cortexward.sandbox",
   "cortexward.storage",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+[[tool.importlinter.contracts]]
+name = "Storage adapters do not depend on other adapters or interfaces"
+type = "forbidden"
+source_modules = ["cortexward.storage"]
+forbidden_modules = [
+  "cortexward.cpg",
+  "cortexward.scanners",
+  "cortexward.reporters",
+  "cortexward.eval",
+  "cortexward.llm",
+  "cortexward.agents",
+  "cortexward.orchestrator",
+  "cortexward.sandbox",
+  "cortexward.vcs",
+  "cortexward.cli",
+  "cortexward.server",
+  "cortexward.sdk",
+]
+
+[[tool.importlinter.contracts]]
+name = "Sandbox adapters do not depend on other adapters or interfaces"
+type = "forbidden"
+source_modules = ["cortexward.sandbox"]
+forbidden_modules = [
+  "cortexward.cpg",
+  "cortexward.scanners",
+  "cortexward.reporters",
+  "cortexward.eval",
+  "cortexward.llm",
+  "cortexward.agents",
+  "cortexward.orchestrator",
+  "cortexward.storage",
+  "cortexward.vcs",
   "cortexward.cli",
   "cortexward.server",
   "cortexward.sdk",

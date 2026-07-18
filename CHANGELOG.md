@@ -77,6 +77,50 @@ All notable changes to CortexWard are documented here. The format is based on
   throughout; the derived CLI shorthand `aegis` → `ward`. No functional changes.
 
 ### Added
+- **`DockerSandboxAdapter`** (`cortexward-sandbox`, new workspace package): the first `SandboxPort`
+  (MPS §22.4, ADR-0004) implementation. Follows the normative execution contract as literally as a
+  plain `docker` CLI invocation allows: `--network none` by default (`EgressPolicy.ALLOW_LIST`
+  raises `NotImplementedError` rather than approximating it unsafely), `--read-only` root, ephemeral
+  per-run containers always removed, `--memory`/`--memory-swap` limits, `wall_clock_seconds` as a
+  hard subprocess timeout with an explicit `docker kill` on expiry, and genuinely **no host
+  mounts** — the input bundle is streamed into the container and any produced artifacts streamed
+  back out via `docker cp -` (a tar stream over the daemon API), never a bind mount. `ExecutionSpec`
+  gained an `image` field (default `python:3.11-slim`) the port previously had no way to express.
+  Not live-verified in this environment (Docker's CLI is installed but its daemon is unreachable,
+  confirmed via `docker info`'s connection error) — deterministic tests always run; a
+  `TestLiveDocker` class exercises a real daemon end to end and skips automatically otherwise,
+  matching `OllamaAdapter`'s own `TestLiveOllama` pattern. 100%-covered.
+- **`LangGraphOrchestrator`** (`cortexward-orchestrator`): the LangGraph-backed `OrchestratorPort`
+  adapter ADR-0002 named as its reference ("LangGraph is one adapter behind that port"). Runs the
+  exact same `Agent` sequence `AgentOrchestrator` does, as a `langgraph.graph.StateGraph` instead
+  of a plain Python loop — no behavior change. LangGraph's own types never escape the module's
+  boundary. A real mypy/LangGraph-stub interaction surfaced and was worked around (documented
+  inline): `StateGraph.add_node`'s generic overload set fails to match a
+  `Callable[[State], State]`-typed value but resolves a literal nested `def` without issue.
+  100%-covered, mirroring `AgentOrchestrator`'s own test suite to prove behavioral equivalence.
+- **`SqliteStoragePort`** (`cortexward-storage`, new workspace package): the first `StoragePort`
+  (MPS §17.1/§19, ADR-0008) implementation, closing a gap `SqliteRepositoryMemory`'s own docs used
+  to cite as needing "a port-level design decision this project hasn't made yet." That decision
+  turned out to be small and inferable, not an open product question: `FindingEvent` gained a
+  `finding` field carrying the full detected `Finding` snapshot on `DETECTED` events — the one
+  piece of data ever missing to replay a finding's materialized state from its own log.
+  `materialize_finding()` (`cortexward.ports`) is the resulting pure replay function, shared by
+  every `StoragePort` adapter, folding `EVIDENCE_ATTACHED`/`ASSESSED`/`PATCH_PROPOSED`/
+  `SUPPRESSED` events onto the `DETECTED` snapshot via the domain's own `with_evidence`/
+  `apply_assessment`/`with_state` — nothing invented, all grounded in vocabulary the domain model
+  already defines. `SqliteStoragePort` persists only the append-only log (stdlib `sqlite3`);
+  `list_findings(run_id)` reads a finding's detected-run identity from `Finding.provenance.run_id`
+  rather than adding a redundant column. Registered under `cortexward.storage` as `sqlite`.
+  100%-covered.
+- **Trust-boundary modeling** (`Threat.crosses_trust_boundary`, MPS Phase 5): MPS §22.1's
+  untrusted-zone/trusted-control-plane split, generalized from describing CortexWard's own
+  architecture to an analyzed target's — a known entry point stands in for that target's untrusted
+  zone, and this asks the strictly stronger question attack-surface mapping doesn't: does *data*
+  from there actually flow into this location, via `CodeGraph.taint()` (built in Phase 2,
+  previously unused outside `cortexward-cpg`'s own tests). A path a declared sanitizer lies on
+  does not count as a crossing. `cortexward.agents.reachability.crosses_trust_boundary()` and
+  `ThreatModel.boundary_crossings` mirror the existing `is_reachable_from_entrypoint()`/`.exposed`
+  pair exactly. 100%-covered.
 - **Phase 3 — Semgrep adapter, closing the last open item in Phase 3.** `SemgrepScanner`
   invokes the real `semgrep` binary against `semgrep_rules/`, a small rule pack authored in this
   repository and bundled with the package — never `--config=auto` or a registry shorthand, both

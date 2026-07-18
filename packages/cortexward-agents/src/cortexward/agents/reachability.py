@@ -46,4 +46,35 @@ def is_reachable_from_entrypoint(
     return False
 
 
-__all__ = ["is_reachable_from_entrypoint"]
+def crosses_trust_boundary(
+    locations: Sequence[SourceLocation], code_graphs: Mapping[str, CodeGraph]
+) -> bool:
+    """Whether untrusted *data* provably reaches any of `locations` from a known entry point.
+
+    The generalization of MPS §22.1's untrusted-zone/trusted-control-plane
+    split from CortexWard's own architecture to an analyzed target's: entry
+    points are treated as the target's own untrusted zone (attacker-
+    influenced input), and this asks whether a genuine, unsanitized
+    data-flow path (`CodeGraph.taint`) crosses from there into `locations`.
+
+    Distinct from `is_reachable_from_entrypoint`, which only proves the
+    code at a location *executes* reachably from an entry point -- a much
+    weaker claim than data from that entry point actually flowing into it.
+    A path a declared sanitizer lies on (`TaintPath.sanitized`) does not
+    count as a crossing.
+    """
+    for location in locations:
+        for graph in code_graphs.values():
+            entrypoints = graph.entrypoints()
+            if not entrypoints:
+                continue
+            nodes = graph.nodes_at(location.path, location.start_line)
+            if not nodes:
+                continue
+            paths = graph.taint(list(entrypoints), list(nodes))
+            if any(not path.sanitized for path in paths):
+                return True
+    return False
+
+
+__all__ = ["crosses_trust_boundary", "is_reachable_from_entrypoint"]

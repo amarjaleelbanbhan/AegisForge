@@ -2,15 +2,47 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 
 import pytest
 
-from cortexward.domain import Finding
-from cortexward.ports import FindingEvent, FindingEventKind, StoragePort
+from cortexward.domain import Evidence, EvidenceKind, Finding, FindingState, Patch, Provenance
+from cortexward.ports import FindingEvent, FindingEventKind, StoragePort, materialize_finding
 
 pytestmark = pytest.mark.unit
+
+MakeFinding = Callable[..., Finding]
+MakeEvidence = Callable[..., Evidence]
+
+_PROV = Provenance(producer="test", producer_version="0")
+
+
+def _detected(finding: Finding, *, when: datetime | None = None) -> FindingEvent:
+    return FindingEvent(
+        finding_id=finding.id,
+        kind=FindingEventKind.DETECTED,
+        occurred_at=when or datetime.now(UTC),
+        finding=finding,
+    )
+
+
+def _make_patch(
+    finding_id: str,
+    *,
+    tests_pass: bool | None = None,
+    rescan_clean: bool | None = None,
+    exploit_neutralized: bool | None = None,
+) -> Patch:
+    return Patch(
+        finding_id=finding_id,
+        diff="--- a\n+++ b\n",
+        description="fix it",
+        provenance=_PROV,
+        tests_pass=tests_pass,
+        rescan_clean=rescan_clean,
+        exploit_neutralized=exploit_neutralized,
+    )
 
 
 class _InMemoryStorage:
@@ -73,3 +105,157 @@ def test_artifact_round_trip() -> None:
 
 def test_unknown_finding_returns_none() -> None:
     assert _InMemoryStorage().get_finding("nope") is None
+
+
+class TestMaterializeFinding:
+    """`materialize_finding` replays a finding's event log (ADR-0008)."""
+
+    def test_empty_log_materializes_to_none(self) -> None:
+        assert materialize_finding([]) is None
+
+    def test_detected_event_materializes_the_snapshot(self, make_finding: MakeFinding) -> None:
+        finding = make_finding()
+        assert materialize_finding([_detected(finding)]) == finding
+
+    def test_a_delta_event_before_any_detected_event_is_ignored(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
+        finding = make_finding()
+        orphan_evidence_event = FindingEvent(
+            finding_id=finding.id,
+            kind=FindingEventKind.EVIDENCE_ATTACHED,
+            occurred_at=datetime.now(UTC),
+            evidence=make_evidence(),
+        )
+        assert materialize_finding([orphan_evidence_event]) is None
+
+    def test_evidence_attached_accumulates_onto_the_detected_snapshot(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
+        finding = make_finding()
+        new_evidence = make_evidence(EvidenceKind.TAINT_TRACE)
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.EVIDENCE_ATTACHED,
+                occurred_at=datetime.now(UTC),
+                evidence=new_evidence,
+            ),
+        ]
+        result = materialize_finding(events)
+        assert result is not None
+        assert new_evidence in result.evidence
+
+    def test_an_evidence_attached_event_with_no_evidence_leaves_the_finding_unchanged(
+        self, make_finding: MakeFinding
+    ) -> None:
+        finding = make_finding()
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.EVIDENCE_ATTACHED,
+                occurred_at=datetime.now(UTC),
+            ),
+        ]
+        assert materialize_finding(events) == finding
+
+    def test_assessed_recomputes_state_from_accumulated_evidence(
+        self, make_finding: MakeFinding, make_evidence: MakeEvidence
+    ) -> None:
+        finding = make_finding(
+            make_evidence(EvidenceKind.STATIC_MATCH),
+            make_evidence(EvidenceKind.TAINT_TRACE),
+        )
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.ASSESSED,
+                occurred_at=datetime.now(UTC),
+            ),
+        ]
+        result = materialize_finding(events)
+        assert result is not None
+        assert result.state is not FindingState.CANDIDATE
+
+    def test_a_fully_validated_patch_proposal_marks_the_finding_patched(
+        self, make_finding: MakeFinding
+    ) -> None:
+        finding = make_finding()
+        patch = _make_patch(
+            finding.id, tests_pass=True, rescan_clean=True, exploit_neutralized=True
+        )
+        assert patch.is_validated is True
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.PATCH_PROPOSED,
+                occurred_at=datetime.now(UTC),
+                patch=patch,
+            ),
+        ]
+        result = materialize_finding(events)
+        assert result is not None
+        assert result.state is FindingState.PATCHED
+
+    def test_an_unvalidated_patch_proposal_does_not_change_state(
+        self, make_finding: MakeFinding
+    ) -> None:
+        finding = make_finding()
+        patch = _make_patch(finding.id, tests_pass=True)
+        assert patch.is_validated is False
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.PATCH_PROPOSED,
+                occurred_at=datetime.now(UTC),
+                patch=patch,
+            ),
+        ]
+        result = materialize_finding(events)
+        assert result is not None
+        assert result.state is finding.state
+
+    def test_suppressed_marks_the_finding_dismissed(self, make_finding: MakeFinding) -> None:
+        finding = make_finding()
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.SUPPRESSED,
+                occurred_at=datetime.now(UTC),
+                note="accepted risk",
+            ),
+        ]
+        result = materialize_finding(events)
+        assert result is not None
+        assert result.state is FindingState.DISMISSED
+
+    def test_events_replay_in_the_order_given_not_sorted(self, make_finding: MakeFinding) -> None:
+        finding = make_finding()
+        patch = _make_patch(
+            finding.id, tests_pass=True, rescan_clean=True, exploit_neutralized=True
+        )
+        events = [
+            _detected(finding),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.PATCH_PROPOSED,
+                occurred_at=datetime.now(UTC),
+                patch=patch,
+            ),
+            FindingEvent(
+                finding_id=finding.id,
+                kind=FindingEventKind.SUPPRESSED,
+                occurred_at=datetime.now(UTC),
+            ),
+        ]
+        result = materialize_finding(events)
+        assert result is not None
+        # Suppressed was replayed last, so it wins over the earlier patch state
+        # -- the function trusts caller-supplied order, it does not re-sort.
+        assert result.state is FindingState.DISMISSED

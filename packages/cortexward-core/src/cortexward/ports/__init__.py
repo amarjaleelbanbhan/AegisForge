@@ -33,7 +33,12 @@ from cortexward.ports.sandbox import (
     SandboxPort,
 )
 from cortexward.ports.scanner import RawFinding, ScannerPort
-from cortexward.ports.storage import FindingEvent, FindingEventKind, StoragePort
+from cortexward.ports.storage import (
+    FindingEvent,
+    FindingEventKind,
+    StoragePort,
+    materialize_finding,
+)
 from cortexward.ports.telemetry import SpanHandle, TelemetryPort
 from cortexward.ports.vcs import PullRequestRef, VCSPort
 
@@ -71,4 +76,5 @@ __all__ = [
     "ToolCall",
     "ToolSpec",
     "VCSPort",
+    "materialize_finding",
 ]

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from cortexward.agents.reachability import is_reachable_from_entrypoint
+from cortexward.agents.reachability import crosses_trust_boundary, is_reachable_from_entrypoint
 from cortexward.domain import Finding, Threat, ThreatModel, stride_categories_for
 from cortexward.ports import CodeGraph
 
@@ -33,6 +33,7 @@ def _threat_for(finding: Finding, *, code_graphs: Mapping[str, CodeGraph]) -> Th
         severity=finding.severity,
         location=finding.locations[0] if finding.locations else None,
         reachable_from_entrypoint=is_reachable_from_entrypoint(finding.locations, code_graphs),
+        crosses_trust_boundary=crosses_trust_boundary(finding.locations, code_graphs),
     )
 
 

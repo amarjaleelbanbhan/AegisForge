@@ -64,6 +64,7 @@ class TestThreat:
             severity=Severity.HIGH,
         )
         assert threat.reachable_from_entrypoint is False
+        assert threat.crosses_trust_boundary is False
         assert threat.location is None
 
     def test_rejects_unknown_fields(self) -> None:
@@ -94,6 +95,7 @@ def _threat(
     finding_id: str = "find_1",
     categories: frozenset[StrideCategory] = frozenset({StrideCategory.TAMPERING}),
     reachable: bool = False,
+    crosses_boundary: bool = False,
 ) -> Threat:
     return Threat(
         finding_id=finding_id,
@@ -103,6 +105,7 @@ def _threat(
         severity=Severity.HIGH,
         location=SourceLocation(path="app.py", start_line=1),
         reachable_from_entrypoint=reachable,
+        crosses_trust_boundary=crosses_boundary,
     )
 
 
@@ -111,6 +114,7 @@ class TestThreatModel:
         model = ThreatModel()
         assert model.threats == ()
         assert model.exposed == ()
+        assert model.boundary_crossings == ()
 
     def test_by_category_filters_to_matching_threats_only(self) -> None:
         spoofing = _threat(finding_id="find_spoof", categories=frozenset({StrideCategory.SPOOFING}))
@@ -127,6 +131,12 @@ class TestThreatModel:
         not_exposed = _threat(finding_id="find_hidden", reachable=False)
         model = ThreatModel(threats=(exposed, not_exposed))
         assert model.exposed == (exposed,)
+
+    def test_boundary_crossings_returns_only_crossing_threats(self) -> None:
+        crossing = _threat(finding_id="find_crossing", crosses_boundary=True)
+        not_crossing = _threat(finding_id="find_internal", crosses_boundary=False)
+        model = ThreatModel(threats=(crossing, not_crossing))
+        assert model.boundary_crossings == (crossing,)
 
     def test_generated_at_defaults_to_now(self) -> None:
         model = ThreatModel()

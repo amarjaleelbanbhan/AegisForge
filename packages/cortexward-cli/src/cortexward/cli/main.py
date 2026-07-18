@@ -305,7 +305,10 @@ def threat_model(
         bool,
         typer.Option(
             "--reachability/--no-reachability",
-            help="Attach CPG-grounded entry-point reachability to each threat.",
+            help=(
+                "Attach CPG-grounded entry-point reachability and trust-boundary-crossing "
+                "proofs to each threat."
+            ),
         ),
     ] = True,
 ) -> None:

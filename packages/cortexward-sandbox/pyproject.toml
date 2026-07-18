@@ -1,0 +1,43 @@
+# cortexward-sandbox — SandboxPort adapters (MPS §22.4, ADR-0004).
+# Depends on cortexward-core for the port contract only. No other adapter
+# dependency — sandbox is a peer-isolated adapter family, same as
+# cortexward-vcs/-llm/-storage.
+[build-system]
+requires = ["hatchling>=1.31.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cortexward-sandbox"
+version = "0.1.0.dev0"
+description = "CortexWard SandboxPort adapters (Docker, ...) for isolated dynamic execution."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CortexWard Contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  "cortexward-core",
+]
+
+[project.urls]
+Homepage = "https://github.com/amarjaleelbanbhan/CortexWard"
+Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
+
+[project.entry-points."cortexward.sandbox"]
+docker = "cortexward.sandbox.docker_adapter:DockerSandboxAdapter"
+
+[tool.uv.sources]
+cortexward-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cortexward"]

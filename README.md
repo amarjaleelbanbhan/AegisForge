@@ -100,11 +100,16 @@ compatible APIs, and Gemini, plus a cost-aware `ModelRouter`. `cortexward-agents
 agent pipeline (Planner, Scanner, Verifier, Repair, Reviewer, Coordinator, Memory) behind
 `AgentOrchestrator`, CPG-grounded reachability evidence, STRIDE threat-model classification, and
 patch-gate verification (applies-cleanly + rescan-clean). `cortexward-vcs` ships `GitHubVCSAdapter`,
-the first `VCSPort` implementation. `cortexward-orchestrator` ships `SequentialOrchestrator` (no
-LLM) and `build_pipeline()`, which picks it or the agent-driven pipeline based on whether an LLM
-is configured. `cortexward-cli` ships `ward scan`/`baseline`/`threat-model`/`serve` on top of all
-of the above; `cortexward-server` ships a REST API slice; `integrations/vscode` ships a VS Code
-extension. Every package is independently versioned under [`packages/`](packages/), added as its
+the first `VCSPort` implementation. `cortexward-storage` ships `SqliteStoragePort`, the first
+`StoragePort` implementation (the event-sourced finding log, ADR-0008). `cortexward-sandbox` ships
+`DockerSandboxAdapter`, the first `SandboxPort` implementation (isolated dynamic execution,
+ADR-0004). `cortexward-orchestrator`
+ships `SequentialOrchestrator` (no LLM), `LangGraphOrchestrator` (ADR-0002's named reference
+adapter, behaviorally identical to the agent-driven pipeline below), and `build_pipeline()`, which
+picks `SequentialOrchestrator` or the agent-driven pipeline based on whether an LLM is configured.
+`cortexward-cli` ships `ward
+scan`/`baseline`/`threat-model`/`serve` on top of all of the above; `cortexward-server` ships a
+REST API slice; `integrations/vscode` ships a VS Code extension. Every package is independently versioned under [`packages/`](packages/), added as its
 phase lands — see [ARCHITECTURE.md](ARCHITECTURE.md) and
 [ADR-0005](docs/adr/0005-uv-workspace-monorepo.md).
 
@@ -206,11 +211,16 @@ self-authored, offline, bundled rule pack), cross-tool correlation, and SARIF ex
 `RunManifest` and statistical protocol are in place; the golden benchmark dataset (and Phase 9's
 benchmark scale-out) are blocked on a dataset-sourcing decision. Phase 4 (agents) is
 substantially complete: seven
-real agents, a multi-provider `LLMPort`, and CPG-grounded reachability evidence, all behind
-`ward scan --llm-provider`. Phase 5 has STRIDE threat modeling (`ward threat-model`); trust-
-boundary and business-logic analysis need design work this project hasn't done yet. Phase 6
-(sandbox) is blocked on Docker not being available in this development environment; Phase 7's
-patch-gate verification has the two gates that don't need it (applies-cleanly, rescan-clean).
+real agents, a multi-provider `LLMPort`, CPG-grounded reachability evidence, and a LangGraph-backed
+`OrchestratorPort` adapter (ADR-0002's named reference), all behind `ward scan --llm-provider`.
+`SqliteStoragePort` (`cortexward-storage`) is the first `StoragePort` implementation. Phase 5 has
+STRIDE threat modeling plus attack-surface and trust-boundary mapping
+(`ward threat-model`); business-logic analysis needs design work this project hasn't done yet
+(MPS gives no concrete spec to generalize from, unlike trust boundaries). Phase 6's
+`DockerSandboxAdapter` (`cortexward-sandbox`) is the first `SandboxPort` implementation — not
+live-verified in this environment (Docker's daemon is unreachable, its CLI is installed), and not
+yet called from any gate-verification agent; Phase 7's patch-gate verification has the two gates
+that don't need it (applies-cleanly, rescan-clean).
 Phase 8's CLI, REST API, GitHub Action, VS Code extension, and a `GitHubVCSAdapter` are all real
 and tested — a full GitHub App (bot-driven PR review) is what's left, blocked on registering one,
 an owner-account action. See [ROADMAP.md](ROADMAP.md) for the full, per-phase breakdown of

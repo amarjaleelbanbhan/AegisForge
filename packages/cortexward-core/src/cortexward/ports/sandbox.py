@@ -37,6 +37,18 @@ class ExecutionSpec(PortModel):
     command: tuple[str, ...]
     input_bundle_ref: str
     """Content-addressed reference to the (read-only) input filesystem bundle."""
+    image: str = "python:3.11-slim"
+    """The container image ``command`` runs inside.
+
+    Defaults to this project's own primary supported runtime (MPS §6.1:
+    "Python first") — a target's own language/dependency needs mean this is
+    genuinely target-specific in general, but no port field existed to say
+    so before now, and Python is the one language this project can
+    currently give a defensible default for. Per-target image selection
+    (installing a target's own declared dependencies into a purpose-built
+    image before executing its tests/PoC) is future work once multi-
+    language dynamic execution is in scope.
+    """
     env: dict[str, str] = Field(default_factory=dict)
     limits: ResourceLimits = Field(default_factory=ResourceLimits)
     egress: EgressPolicy = EgressPolicy.DENY_ALL

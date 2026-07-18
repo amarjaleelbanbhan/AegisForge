@@ -266,12 +266,48 @@ cost-aware model router.
 - ✅ **`SqliteRepositoryMemory`**: a persistent `RepositoryMemory` (MPS §15 tier 2), closing
   `InMemoryRepositoryMemory`'s documented "lost when the process exits" limitation. Uses stdlib
   `sqlite3` only — `RepositoryMemory`'s three-method protocol is small and fully self-contained,
-  unlike `StoragePort`'s general event-sourced finding log (`FindingEvent` has no field for a
-  finding's own core data, so a real adapter for that needs a port-level design decision this
-  project hasn't made yet), so this closes a real gap without waiting on the broader one. Supports
-  both `:memory:` (default) and a file path for genuine cross-process persistence; a context
-  manager. 100%-covered, including a real round-trip through two separate connections to the same
-  file confirming persistence survives a close/reopen.
+  so this closed a real gap independently of `StoragePort`'s own, separate gap (see the
+  `cortexward-storage` bullet immediately below, which closed that one too).
+  Supports both `:memory:` (default) and a file path for genuine cross-process persistence; a
+  context manager. 100%-covered, including a real round-trip through two separate connections to
+  the same file confirming persistence survives a close/reopen.
+- ✅ **`SqliteStoragePort`** (`cortexward-storage`, new workspace package): the first `StoragePort`
+  (MPS §17.1/§19, ADR-0008) implementation. Closing it needed one addition first: `FindingEvent`
+  gained a `finding` field carrying the full detected `Finding` snapshot on `DETECTED` events —
+  the one piece of data the port was previously missing to ever reconstruct a finding's
+  materialized state from its own event log, resolving the gap the `SqliteRepositoryMemory` bullet
+  above used to describe as needing "a port-level design decision this project hasn't made yet."
+  `materialize_finding()` (`cortexward.ports`) is the resulting pure event-replay function, shared
+  by every future `StoragePort` adapter rather than reimplemented per adapter: it folds
+  `EVIDENCE_ATTACHED`/`ASSESSED`/`PATCH_PROPOSED`/`SUPPRESSED` events onto the `DETECTED` snapshot
+  via the domain's own `with_evidence`/`apply_assessment`/`with_state`, mapping `PATCH_PROPOSED`
+  to `PATCHED` only when `Patch.is_validated` and `SUPPRESSED` to `FindingState.DISMISSED` —
+  both grounded in vocabulary the domain model already defines, nothing invented for this adapter.
+  `SqliteStoragePort` persists nothing but the append-only log itself (stdlib `sqlite3`, mirroring
+  `SqliteRepositoryMemory`'s own minimalism); `list_findings(run_id)` reads a finding's detected-run
+  identity from `Finding.provenance.run_id` (already part of the domain model) rather than adding a
+  redundant column. Registered under the `cortexward.storage` entry-point group as `sqlite`.
+  100%-covered, including real round-trips through two separate connections to the same file.
+  **Not built**: a Postgres+pgvector adapter (MPS §19's server/scale reference) — needs a running
+  Postgres instance to verify against, which this environment doesn't have (the same "unavailable
+  runtime infrastructure" gap `SandboxPort`'s Docker/gVisor adapter has).
+- ✅ **`LangGraphOrchestrator`** (`cortexward-orchestrator`): the LangGraph-backed
+  `OrchestratorPort` adapter ADR-0002 named as its reference ("LangGraph is one adapter behind
+  that port"), closing the gap this phase's own header used to leave open. Runs the exact same
+  `Agent` sequence `AgentOrchestrator` does, as a `langgraph.graph.StateGraph` (a linear chain,
+  `START` through every agent to `END`) instead of a plain Python loop — no behavior change, same
+  agents, same order, same `RunState` threading. LangGraph's own types never escape the module's
+  boundary (a private `TypedDict` wraps the one `RunState` value threaded through the graph),
+  matching ADR-0002's "Consequences" section verbatim: "freedom to swap or drop LangGraph without
+  touching agents or the domain." A real mypy/LangGraph-stub interaction surfaced along the way:
+  `StateGraph.add_node`'s generic overload set fails to match a `Callable[[State], State]`-typed
+  value but resolves a literal nested `def` (whose type mypy infers structurally) without issue —
+  worked around by defining each node inline rather than via a small factory function, documented
+  in the source rather than silenced with a blanket `type: ignore`. Not wired into
+  `build_pipeline()`/`ward scan` — exposing a third execution-engine choice through the CLI is a
+  delivery-surface decision this package doesn't make unilaterally; `LangGraphOrchestrator` is
+  available today for any caller that constructs an `OrchestratorPort` directly. 100%-covered,
+  mirroring `AgentOrchestrator`'s own test suite closely to prove behavioral equivalence.
 
 ## Phase 5 — Threat & architecture reasoning 🚧
 STRIDE threat modeling, trust boundaries, attack-surface mapping, and business-logic analysis
@@ -293,28 +329,80 @@ grounded on the CPG.
     behavior change (its full test suite passes unmodified). Same one-directional honesty as
     everywhere else in this framework: `False` means "not proven reachable by this run's
     heuristics," never "proven unreachable."
+  - **Trust-boundary modeling**: `Threat.crosses_trust_boundary` is MPS §22.1's untrusted-zone/
+    trusted-control-plane split — described there for CortexWard's own architecture — generalized
+    to an analyzed target's: a known entry point stands in for that target's own untrusted zone,
+    and this asks the strictly stronger question attack-surface mapping doesn't — does *data* from
+    there actually flow into this location, not just "does this code execute reachably."
+    `cortexward.agents.reachability.crosses_trust_boundary()` answers it via `CodeGraph.taint()`
+    (built in Phase 2 for the Verification Ladder's taint rung, previously unused outside
+    `cortexward-cpg`'s own tests) — a path a declared sanitizer lies on does not count as a
+    crossing, since the whole point of a boundary is where *unvalidated* data crosses it. Same
+    one-directional proof-only convention as every other signal here.
   - **`build_threat_model()`** (`cortexward.agents.threat_model`) is deliberately not an `Agent`:
-    STRIDE classification and reachability are both deterministic, so it needs no LLM and stays
-    usable from a plain scanner pipeline, the same way `cortexward.cli.baseline` does.
+    STRIDE classification, reachability, and trust-boundary crossing are all deterministic, so it
+    needs no LLM and stays usable from a plain scanner pipeline, the same way
+    `cortexward.cli.baseline` does.
   - **`build_threat_model_for()`** (`cortexward.orchestrator.threat_model`) mirrors
     `build_pipeline`'s role: scans a root, optionally builds a `CodeGraph`, and classifies the
     result — the one place `cortexward-orchestrator` depends on `cortexward.agents.threat_model`,
     keeping the CLI decoupled from `cortexward-agents` directly (the same separation
     `build_pipeline` already established).
   - **`ward threat-model <path>`** wires it into the CLI: JSON to stdout or `--output FILE`,
-    `--language` filtering, `--reachability/--no-reachability`. No LLM flags, matching `ward
-    baseline`'s design.
+    `--language` filtering, `--reachability/--no-reachability` (now gating both the attack-surface
+    and trust-boundary signals together, since both need the same `CodeGraph`). No LLM flags,
+    matching `ward baseline`'s design.
   - 100%-covered throughout, including real end-to-end tests: a genuine command-injection fixture
     scanned by the real `BanditScanner`, with a real CPG proving reachability from an
     `if __name__ == "__main__":` guard — no mocked scanner or graph.
-- ⏳ Trust-boundary modeling (an explicit representation of the untrusted/trusted-control-plane
-  split MPS §22.1 describes for CortexWard's own architecture, generalized to an analyzed
-  target's architecture) and business-logic analysis remain unbuilt — both need design work this
-  session didn't attempt, not just implementation.
+- ⏳ Business-logic analysis remains unbuilt — MPS gives no concrete spec for what "business
+  logic" means as an analyzable structure (unlike trust boundaries, which §22.1 already describes
+  concretely enough to generalize), so this genuinely needs product/architecture design work this
+  project hasn't done, not just implementation.
 
-## Phase 6 — Exploit verification ⏳
+## Phase 6 — Exploit verification 🚧
 Sandbox (Docker → gVisor/Firecracker), the full ladder end to end, false-positive reduction,
 PoC artifacts, and VEX output.
+- ✅ **`DockerSandboxAdapter`** (`cortexward-sandbox`, new workspace package): the first
+  `SandboxPort` (MPS §22.4, ADR-0004) implementation. Follows the normative execution contract as
+  literally as a plain `docker` CLI invocation allows: `--network none` by default (`EgressPolicy.
+  ALLOW_LIST` raises `NotImplementedError` — genuinely restricting egress to specific hosts needs a
+  custom Docker network plus firewall/DNS rules this adapter doesn't build, and silently granting
+  more or less access than requested would both violate the policy actually requested);
+  `--read-only` root with a `--tmpfs /tmp` scratch area; every container uniquely named and
+  removed (`docker rm -f`) in a `finally` block regardless of outcome; `--memory`/`--memory-swap`
+  from `ResourceLimits.memory_mb` directly; `wall_clock_seconds` as a hard subprocess timeout with
+  an explicit `docker kill` on expiry (killing the local `docker` CLI client does not by itself
+  stop the container running server-side); `cpu_seconds` approximated as a `--cpus` rate over the
+  wall-clock window, documented as an approximation since Docker has no native total-CPU-time cap;
+  `--user 1000:1000`, `--security-opt no-new-privileges`, `--cap-drop ALL`; Docker's own default
+  seccomp/AppArmor profiles apply automatically (never disabled). **No host mounts, genuinely**:
+  the input bundle is streamed into the container with `docker cp -` (a tar stream over the daemon
+  API) and any produced artifacts streamed back the same way, both before/after the container ever
+  runs — never a `-v <host path>:...` bind mount, which the port's own `no host mounts`
+  requirement rules out literally, not just in spirit. `ExecutionSpec` gained an `image` field
+  (default `python:3.11-slim`, this project's own primary supported language) — the port
+  previously had no way to say what to run a command inside at all.
+  - **Not live-verified in this environment**: this environment's `docker` CLI is installed, but
+    its daemon is unreachable (`docker info` fails to connect to the Docker Desktop engine) —
+    freshly reconfirmed this session with concrete evidence (the exact `npipe` connection error),
+    not assumed from a prior session's stale finding. Deterministic tests (command construction,
+    `cpu_seconds` approximation, binary resolution, and the full `execute()` flow against a
+    monkeypatched `docker` CLI — success, nonzero exit, timeout + `docker kill`, artifact
+    collection, guaranteed cleanup) run and pass always, reaching 100% coverage without a daemon;
+    a `TestLiveDocker` class genuinely exercises a real daemon end to end on top of that (container
+    run, egress denial, bundle round-trip, artifact collection, timeout enforcement, post-run
+    cleanup) and is skipped automatically when unreachable — the same "not live-verified, validate
+    before depending on this in production" caveat
+    `OllamaAdapter`/`GitHubVCSAdapter`/`AnthropicAdapter`/`GeminiAdapter` all already carry.
+  - **`EgressPolicy.ALLOW_LIST`** and the **gVisor/Firecracker tier** are deliberately not
+    implemented — the former needs custom network/firewall infrastructure, the latter needs the
+    `runsc`/Firecracker runtime installed and configured on the host, both unavailable
+    infrastructure in any environment this project has verified against.
+- ⏳ Wiring `DockerSandboxAdapter` into an actual PoC-replay/differential-test agent (reaching
+  Verification Ladder rungs 3-4, and unblocking Phase 7's Gates B/D below) — the adapter exists,
+  but nothing yet calls `SandboxPort.execute()` from the agent pipeline. False-positive reduction
+  and VEX output remain unbuilt.
 
 ## Phase 7 — Patch generation 🚧
 Minimal-diff automated repair with the three-gate validation (tests pass · rescan clean ·
@@ -339,11 +427,15 @@ exploit neutralized) and regression prevention.
   duplicates. 100%-covered using the real `git` binary and the real `BanditScanner` — no mocking,
   since this module's entire job is applying a real diff and re-running a real scanner.
 - ⏳ **Gates B ("existing tests pass") and D ("original PoC neutralized")** — both need to execute
-  the analyzed project's own code (running its test suite, replaying a PoC), which needs Phase
-  6's `SandboxPort` and doesn't exist yet. `Patch.is_validated` requires all three of
-  `tests_pass`/`rescan_clean`/`exploit_neutralized` truthy, so a patch can reach `rescan_clean =
-  True` through this work and still correctly have `is_validated = False` until Phase 6 lands —
-  this is intentional, not a gap being hidden.
+  the analyzed project's own code (running its test suite, replaying a PoC). `DockerSandboxAdapter`
+  (Phase 6 above) now exists, closing the "SandboxPort has no adapter" half of this gap, but
+  nothing yet calls it from a gate-verification agent — that needs its own design (how is a
+  target's test suite invoked generically across ecosystems; where does a PoC's own reproduction
+  command/`input_bundle_ref` come from, given no producer of `EvidenceKind.EXPLOIT_POC` evidence
+  exists yet either) and implementation, not just an available adapter. `Patch.is_validated`
+  requires all three of `tests_pass`/`rescan_clean`/`exploit_neutralized` truthy, so a patch can
+  reach `rescan_clean = True` through the existing gate work and still correctly have
+  `is_validated = False` until this lands — intentional, not a gap being hidden.
 
 ## Phase 8 — Delivery surfaces 🚧
 CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
@@ -409,7 +501,10 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
   unlike SARIF). Mirrors `ward scan`'s own flags in the request body and reuses
   `cortexward.orchestrator.build_pipeline()`, so a scan behaves identically whether it's driven
   from the CLI or the API. Jobs run via FastAPI's `BackgroundTasks` against an in-memory
-  `JobStore` — single-process, no persistence (`StoragePort` has no adapter yet to persist into).
+  `JobStore` — single-process, no persistence. `SqliteStoragePort` (Phase 4 above) now exists, but
+  wiring `JobStore` to persist through it is separate, not-yet-done integration work: `JobStore`'s
+  job-lifecycle shape (queued/running/completed status) doesn't map onto `StoragePort`'s
+  finding-event log one-to-one, so this needs its own design, not just an adapter swap.
   **Deliberately not implemented**: authentication, rate-limiting, per-finding `verify`/`fix`
   endpoints, `GET /v1/runs/{id}/manifest`, `POST /v1/webhooks/{provider}` — each needs
   infrastructure (a persisted finding store, a `VCSPort` adapter, ...) that doesn't exist yet;

@@ -41,6 +41,7 @@ def test_default_egress_is_deny_all() -> None:
     spec = ExecutionSpec(command=("echo", "hi"), input_bundle_ref="sha256:abc")
     assert spec.egress is EgressPolicy.DENY_ALL
     assert spec.limits == ResourceLimits()
+    assert spec.image == "python:3.11-slim"
 
 
 def test_execute_runs_command() -> None:

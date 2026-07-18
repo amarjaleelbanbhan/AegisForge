@@ -14,9 +14,12 @@ claim" convention (`cortexward.agents.memory`) rather than forcing every
 finding into a category with no confident basis.
 
 Whether a threat's location is reachable from a known entry point (the
-"attack surface" / trust-boundary-crossing question) needs a `CodeGraph`
-query, which this module — kept dependency-free like the rest of
-`cortexward.domain` — cannot perform. `Threat.reachable_from_entrypoint` is
+"attack surface" question) or is actually reached by attacker-influenced
+*data* (the "trust boundary" question, MPS §22.1 generalized from
+CortexWard's own untrusted-zone/trusted-control-plane split to an analyzed
+target's) both need a `CodeGraph` query, which this module — kept
+dependency-free like the rest of `cortexward.domain` — cannot perform.
+`Threat.reachable_from_entrypoint`/`Threat.crosses_trust_boundary` are
 therefore populated by a CPG-aware analysis in `cortexward.agents.
 threat_model`, not here; these are pure value objects.
 """
@@ -113,6 +116,20 @@ class Threat(BaseModel):
     "proven unreachable" — the same one-directional convention
     `VerifierAgent`'s `REACHABILITY_PROOF` evidence uses.
     """
+    crosses_trust_boundary: bool = False
+    """True only on a genuine, unsanitized data-flow proof from a known
+    entry point to this location (`CodeGraph.taint`), not merely a proof
+    the code *executes* (that weaker claim is `reachable_from_entrypoint`).
+
+    A known entry point is treated as this analyzed target's own untrusted
+    zone — the generalization of MPS §22.1's untrusted-zone/trusted-
+    control-plane split from CortexWard's own architecture to an arbitrary
+    target's. A path a declared sanitizer lies on does not count as a
+    crossing: MPS's whole point of a boundary is where *unvalidated* data
+    crosses it. Same one-directional honesty convention as
+    `reachable_from_entrypoint`: `False` means "not proven," never "proven
+    absent."
+    """
 
 
 class ThreatModel(BaseModel):
@@ -131,6 +148,11 @@ class ThreatModel(BaseModel):
     def exposed(self) -> tuple[Threat, ...]:
         """Every threat with a genuine reachability proof from an entry point."""
         return tuple(threat for threat in self.threats if threat.reachable_from_entrypoint)
+
+    @property
+    def boundary_crossings(self) -> tuple[Threat, ...]:
+        """Every threat with a genuine, unsanitized untrusted-data-flow proof."""
+        return tuple(threat for threat in self.threats if threat.crosses_trust_boundary)
 
 
 __all__ = ["StrideCategory", "Threat", "ThreatModel", "stride_categories_for"]

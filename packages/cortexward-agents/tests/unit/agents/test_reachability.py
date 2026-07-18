@@ -1,4 +1,4 @@
-"""Unit tests for `cortexward.agents.reachability.is_reachable_from_entrypoint`."""
+"""Unit tests for `cortexward.agents.reachability`."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 
 import pytest
 
-from cortexward.agents.reachability import is_reachable_from_entrypoint
+from cortexward.agents.reachability import crosses_trust_boundary, is_reachable_from_entrypoint
 from cortexward.domain import SourceLocation
 from cortexward.ports import CodeGraph, NodeId, TaintPath
 
@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 
 
 class _FakeCodeGraph:
-    """A `CodeGraph` whose `reachable()`/`nodes_at()`/`entrypoints()` are scripted."""
+    """A `CodeGraph` whose `reachable()`/`taint()`/`nodes_at()`/`entrypoints()` are scripted."""
 
     language = "python"
 
@@ -24,10 +24,12 @@ class _FakeCodeGraph:
         entrypoints: Sequence[NodeId] = (),
         nodes_by_location: Mapping[tuple[str, int], Sequence[NodeId]] | None = None,
         reachable_sinks: Sequence[NodeId] = (),
+        taint_paths: Sequence[TaintPath] = (),
     ) -> None:
         self._entrypoints = tuple(entrypoints)
         self._nodes_by_location = dict(nodes_by_location or {})
         self._reachable_sinks = set(reachable_sinks)
+        self._taint_paths = tuple(taint_paths)
 
     def entrypoints(self) -> Sequence[NodeId]:
         return self._entrypoints
@@ -38,7 +40,7 @@ class _FakeCodeGraph:
     def taint(
         self, sources: Sequence[NodeId], sinks: Sequence[NodeId], sanitizers: Sequence[NodeId] = ()
     ) -> Sequence[TaintPath]:
-        return ()
+        return tuple(path for path in self._taint_paths if path.sink in sinks)
 
     def callers(self, function: NodeId) -> Sequence[NodeId]:
         return ()
@@ -117,3 +119,70 @@ class TestIsReachableFromEntrypoint:
         )
         graphs = {"go": empty_graph, "python": matching_graph}
         assert is_reachable_from_entrypoint([_location()], graphs) is True
+
+
+class TestCrossesTrustBoundary:
+    def test_satisfies_the_code_graph_protocol(self) -> None:
+        assert isinstance(_FakeCodeGraph(), CodeGraph)
+
+    def test_no_code_graphs_does_not_cross(self) -> None:
+        assert crosses_trust_boundary([_location()], {}) is False
+
+    def test_no_locations_does_not_cross(self) -> None:
+        graph = _FakeCodeGraph(entrypoints=("ep",))
+        assert crosses_trust_boundary([], {"python": graph}) is False
+
+    def test_graph_with_no_entrypoints_does_not_cross(self) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=(),
+            nodes_by_location={("app.py", 3): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1")),),
+        )
+        assert crosses_trust_boundary([_location()], {"python": graph}) is False
+
+    def test_location_with_no_matching_node_does_not_cross(self) -> None:
+        graph = _FakeCodeGraph(entrypoints=("ep",), nodes_by_location={})
+        assert crosses_trust_boundary([_location()], {"python": graph}) is False
+
+    def test_no_taint_path_to_the_node_does_not_cross(self) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("ep",), nodes_by_location={("app.py", 3): ("n1",)}, taint_paths=()
+        )
+        assert crosses_trust_boundary([_location()], {"python": graph}) is False
+
+    def test_a_genuine_unsanitized_taint_path_crosses(self) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("ep",),
+            nodes_by_location={("app.py", 3): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1"), sanitized=False),),
+        )
+        assert crosses_trust_boundary([_location()], {"python": graph}) is True
+
+    def test_a_fully_sanitized_taint_path_does_not_cross(self) -> None:
+        # Reachability control-flow-wise doesn't matter here -- the whole
+        # point of a trust boundary is where *unsanitized* data crosses it.
+        graph = _FakeCodeGraph(
+            entrypoints=("ep",),
+            nodes_by_location={("app.py", 3): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1"), sanitized=True),),
+        )
+        assert crosses_trust_boundary([_location()], {"python": graph}) is False
+
+    def test_checks_every_location_a_finding_carries(self) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("ep",),
+            nodes_by_location={("other.py", 9): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1")),),
+        )
+        locations = [_location(path="app.py", line=3), _location(path="other.py", line=9)]
+        assert crosses_trust_boundary(locations, {"python": graph}) is True
+
+    def test_checks_every_code_graph_given(self) -> None:
+        empty_graph = _FakeCodeGraph()
+        matching_graph = _FakeCodeGraph(
+            entrypoints=("ep",),
+            nodes_by_location={("app.py", 3): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1")),),
+        )
+        graphs = {"go": empty_graph, "python": matching_graph}
+        assert crosses_trust_boundary([_location()], graphs) is True

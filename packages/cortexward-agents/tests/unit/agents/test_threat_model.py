@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 
 
 class _FakeCodeGraph:
-    """A `CodeGraph` whose `reachable()`/`nodes_at()`/`entrypoints()` are scripted."""
+    """A `CodeGraph` whose `reachable()`/`taint()`/`nodes_at()`/`entrypoints()` are scripted."""
 
     language = "python"
 
@@ -24,10 +24,12 @@ class _FakeCodeGraph:
         entrypoints: Sequence[NodeId] = (),
         nodes_by_location: Mapping[tuple[str, int], Sequence[NodeId]] | None = None,
         reachable_sinks: Sequence[NodeId] = (),
+        taint_paths: Sequence[TaintPath] = (),
     ) -> None:
         self._entrypoints = tuple(entrypoints)
         self._nodes_by_location = dict(nodes_by_location or {})
         self._reachable_sinks = set(reachable_sinks)
+        self._taint_paths = tuple(taint_paths)
 
     def entrypoints(self) -> Sequence[NodeId]:
         return self._entrypoints
@@ -38,7 +40,7 @@ class _FakeCodeGraph:
     def taint(
         self, sources: Sequence[NodeId], sinks: Sequence[NodeId], sanitizers: Sequence[NodeId] = ()
     ) -> Sequence[TaintPath]:
-        return ()
+        return tuple(path for path in self._taint_paths if path.sink in sinks)
 
     def callers(self, function: NodeId) -> Sequence[NodeId]:
         return ()
@@ -100,6 +102,7 @@ class TestBuildThreatModel:
     def test_no_code_graphs_leaves_every_threat_unreachable(self) -> None:
         model = build_threat_model([_finding()])
         assert model.threats[0].reachable_from_entrypoint is False
+        assert model.threats[0].crosses_trust_boundary is False
 
     def test_a_finding_with_no_location_is_not_reachable(self) -> None:
         finding = Finding(
@@ -108,6 +111,7 @@ class TestBuildThreatModel:
         model = build_threat_model([finding])
         assert model.threats[0].location is None
         assert model.threats[0].reachable_from_entrypoint is False
+        assert model.threats[0].crosses_trust_boundary is False
 
     def test_a_genuinely_reachable_finding_is_marked_exposed(self) -> None:
         graph = _FakeCodeGraph(
@@ -116,6 +120,26 @@ class TestBuildThreatModel:
         model = build_threat_model([_finding()], {"python": graph})
         assert model.threats[0].reachable_from_entrypoint is True
         assert model.threats[0] in model.exposed
+
+    def test_a_genuine_taint_path_marks_the_trust_boundary_crossed(self) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("ep",),
+            nodes_by_location={("app.py", 3): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1")),),
+        )
+        model = build_threat_model([_finding()], {"python": graph})
+        assert model.threats[0].crosses_trust_boundary is True
+        assert model.threats[0] in model.boundary_crossings
+
+    def test_a_sanitized_taint_path_leaves_the_boundary_uncrossed(self) -> None:
+        graph = _FakeCodeGraph(
+            entrypoints=("ep",),
+            nodes_by_location={("app.py", 3): ("n1",)},
+            taint_paths=(TaintPath(source="ep", sink="n1", path=("ep", "n1"), sanitized=True),),
+        )
+        model = build_threat_model([_finding()], {"python": graph})
+        assert model.threats[0].crosses_trust_boundary is False
+        assert model.threats[0] not in model.boundary_crossings
 
     def test_multiple_findings_each_become_their_own_threat(self) -> None:
         findings = [
