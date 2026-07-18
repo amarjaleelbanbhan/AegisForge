@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
 import shutil
 import subprocess
 import tarfile
@@ -145,9 +146,9 @@ class TestCpuLimit:
         limits = ResourceLimits(cpu_seconds=0.0001, wall_clock_seconds=1000.0)
         assert _cpu_limit(limits) == pytest.approx(0.1)
 
-    def test_clamps_to_a_maximum(self) -> None:
+    def test_clamps_to_a_maximum_of_this_hosts_own_cpu_count(self) -> None:
         limits = ResourceLimits(cpu_seconds=1000.0, wall_clock_seconds=1.0)
-        assert _cpu_limit(limits) == pytest.approx(8.0)
+        assert _cpu_limit(limits) == pytest.approx(float(os.cpu_count() or 1))
 
     def test_zero_wall_clock_does_not_divide_by_zero(self) -> None:
         limits = ResourceLimits(cpu_seconds=10.0, wall_clock_seconds=0.0)
@@ -260,6 +261,34 @@ class TestExecuteMocked:
     tool's I/O boundary" convention `BanditScanner`'s/`SemgrepScanner`'s own
     resilience tests already use in this codebase.
     """
+
+    def test_a_failed_create_raises_with_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _fake_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
+            if argv[1] == "create":
+                return _FakeCompletedProcess(returncode=1, stderr=b"invalid --cpus value")
+            return _FakeCompletedProcess(returncode=0)
+
+        monkeypatch.setattr(subprocess, "run", _fake_run)
+        store = _InMemoryArtifactStore()
+        bundle_ref = store.put_artifact(_tar_bytes({}))
+        adapter = DockerSandboxAdapter(store, docker="/fake/docker")
+        with pytest.raises(RuntimeError, match=r"docker create failed.*invalid --cpus value"):
+            adapter.execute(_spec(bundle_ref=bundle_ref))
+
+    def test_a_failed_bundle_copy_raises_with_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _fake_run(argv: list[str], **kwargs: object) -> _FakeCompletedProcess:
+            if argv[1] == "create":
+                return _FakeCompletedProcess(returncode=0)
+            if argv[1] == "cp" and argv[2] == "-":
+                return _FakeCompletedProcess(returncode=1, stderr=b"no such directory")
+            return _FakeCompletedProcess(returncode=0)
+
+        monkeypatch.setattr(subprocess, "run", _fake_run)
+        store = _InMemoryArtifactStore()
+        bundle_ref = store.put_artifact(_tar_bytes({}))
+        adapter = DockerSandboxAdapter(store, docker="/fake/docker")
+        with pytest.raises(RuntimeError, match=r"docker cp.*no such directory"):
+            adapter.execute(_spec(bundle_ref=bundle_ref))
 
     def test_a_successful_run_returns_its_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(

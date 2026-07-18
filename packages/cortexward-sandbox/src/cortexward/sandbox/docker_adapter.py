@@ -49,6 +49,7 @@ port's own docstring.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tarfile
@@ -91,10 +92,17 @@ def _cpu_limit(limits: ResourceLimits) -> float:
     rate over that same window, clamped to a sane range so a very short
     `wall_clock_seconds` budget doesn't produce a nonsensically large or
     zero `--cpus` value.
+
+    The upper clamp is this host's own CPU count, not an arbitrary
+    constant: some Docker daemon/cgroup configurations reject a `--cpus`
+    value that exceeds the number of CPUs actually available, failing
+    `docker create` outright rather than merely capping the effective
+    rate.
     """
     if limits.wall_clock_seconds <= 0:
         return 1.0
-    return max(0.1, min(8.0, limits.cpu_seconds / limits.wall_clock_seconds))
+    ceiling = float(os.cpu_count() or 1)
+    return max(0.1, min(ceiling, limits.cpu_seconds / limits.wall_clock_seconds))
 
 
 def build_create_argv(spec: ExecutionSpec, *, name: str, docker: str = "docker") -> tuple[str, ...]:
@@ -141,6 +149,31 @@ def build_create_argv(spec: ExecutionSpec, *, name: str, docker: str = "docker")
     return tuple(argv)
 
 
+def _decode(data: bytes | str | None) -> str:
+    if data is None:
+        return ""
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    return data
+
+
+def _run_or_raise(argv: list[str], *, step: str, input: bytes | None = None) -> None:
+    """Runs an infrastructure-setup docker command, raising with its stderr on failure.
+
+    Used only for the `create`/`cp` (bundle-in) steps that must succeed for
+    the run to mean anything at all -- unlike `_start_and_wait`, where a
+    nonzero exit is the analyzed command's own legitimate result, not an
+    infra failure. A bare `subprocess.CalledProcessError` doesn't surface
+    `stderr` in its default message, which made an earlier failure of this
+    exact call needlessly hard to diagnose from CI logs alone.
+    """
+    result = subprocess.run(  # noqa: S603 # nosec B603
+        argv, input=input, capture_output=True, check=False
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"{step} failed (exit {result.returncode}): {_decode(result.stderr)}")
+
+
 class DockerSandboxAdapter:
     """Runs `ExecutionSpec`s as ephemeral, isolated Docker containers."""
 
@@ -165,14 +198,11 @@ class DockerSandboxAdapter:
         bundle = self._artifacts.get_artifact(spec.input_bundle_ref)
         started = time.monotonic()
         try:
-            subprocess.run(  # noqa: S603 # nosec B603
-                list(argv), capture_output=True, text=True, check=True
-            )
-            subprocess.run(  # noqa: S603 # nosec B603
+            _run_or_raise(list(argv), step="docker create")
+            _run_or_raise(
                 [docker, "cp", "-", f"{name}:{_WORKSPACE_PATH}"],
+                step="docker cp (input bundle)",
                 input=bundle,
-                capture_output=True,
-                check=True,
             )
             exit_code, stdout, stderr, timed_out = self._start_and_wait(
                 docker, name, spec.limits.wall_clock_seconds
@@ -233,14 +263,6 @@ class DockerSandboxAdapter:
                     continue
                 refs.append(self._artifacts.put_artifact(extracted.read()))
         return tuple(refs)
-
-
-def _decode(data: bytes | str | None) -> str:
-    if data is None:
-        return ""
-    if isinstance(data, bytes):
-        return data.decode("utf-8", errors="replace")
-    return data
 
 
 __all__ = ["ArtifactStore", "DockerSandboxAdapter", "build_create_argv"]
