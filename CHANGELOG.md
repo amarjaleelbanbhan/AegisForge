@@ -172,6 +172,9 @@ All notable changes to CortexWard are documented here. The format is based on
   gap `LangGraphOrchestrator`'s own changelog entry above left open ("not wired into
   `build_pipeline()`/`ward scan`"). Default (`"agent"`) is byte-for-byte the prior behavior.
   100%-covered.
+- **`make reproduce`** (evaluation-framework.md §8): runs `ward bench run`/`ward bench report`
+  against `cortexward-eval`'s shipped golden dataset in one command, verified to reproduce the
+  documented precision=1.000/recall=1.000/f1=1.000 result from a clean run.
 - **Trust-boundary modeling** (`Threat.crosses_trust_boundary`, MPS Phase 5): MPS §22.1's
   untrusted-zone/trusted-control-plane split, generalized from describing CortexWard's own
   architecture to an analyzed target's — a known entry point stands in for that target's untrusted

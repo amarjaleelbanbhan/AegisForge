@@ -54,6 +54,7 @@ sandbox-artifacts/
 runs/
 *.db
 *.sqlite3
+bench-results/
 
 # Secrets — never commit
 .env

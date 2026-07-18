@@ -665,9 +665,25 @@ CLI (Typer), REST API (FastAPI), GitHub App / Action, and a VS Code extension.
 - ⏳ A GitHub App (bot-driven PR review/comments) remains unbuilt — see `GitHubVCSAdapter` above
   for what it would build on top of.
 
-## Phase 9 — Benchmarks & evaluation ⏳
+## Phase 9 — Benchmarks & evaluation 🚧
 Datasets with contamination controls (post-cutoff + mutated splits), detection/verification/
 patch metrics, and reproducible paper artifacts.
+- ✅ **`make reproduce`** (evaluation-framework.md §8): runs `ward bench run` against
+  `cortexward-eval`'s shipped golden dataset, then `ward bench report --format md,json`, producing
+  a `RunManifest` plus a Markdown/JSON metrics table from one command — verified for real (a fresh
+  run reproduces the documented precision=1.000/recall=1.000/f1=1.000 result). This is §8's
+  reproducibility target for exactly what this project has actually built; no research paper with
+  its own tables/figures exists in this repository yet for a `make reproduce` to regenerate beyond
+  the benchmark table itself, and inventing one isn't this session's call to make.
+- ⏳ **Detection metrics** (`cortexward.eval.metrics`) are complete (Phase 3.5). **Verification and
+  patch-quality metrics** (`RunManifest.metrics.verification_success_by_rung`/`patch_correctness`/
+  `regression_rate`, already present as optional fields per evaluation-framework.md §5) stay
+  unpopulated: computing them needs evidence this framework doesn't produce yet at the required
+  rungs (`TAINT_CONFIRMED`/`DYNAMIC_POC`/`DIFFERENTIAL_TEST` — see Phase 6's PoC-replay gap above)
+  and all three patch gates (Gates B/D — see Phase 7 above), not a new decision `cortexward-eval`
+  itself could make unilaterally.
+- ⏳ Contamination-controlled splits and dataset breadth (SARD/Juliet, CVEfixes) remain unbuilt —
+  see Phase 3.5 above; same MPS §30 open-research-question blocker.
 
 ## Phase 10 — v1.0 ⏳
 Documentation site, examples, community infrastructure, and the 1.0 release.
