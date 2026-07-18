@@ -72,8 +72,21 @@ class MatchResult:
     false_negatives: tuple[str, ...]
 
 
+def _normalized_path(path: str) -> str:
+    """Backslash-to-forward-slash, so a portable (forward-slash) dataset path
+    compares equal to a scanner-emitted path using this host's own OS-native
+    separator. Ground truth is authored once and versioned in a JSON
+    manifest — it uses the portable convention (git, JSON, URLs) regardless
+    of which OS a benchmark run happens to execute on; scanner output uses
+    `str(Path(...))`, which is backslash-separated on Windows. Without this,
+    every ground-truth match silently fails on Windows alone, confirmed
+    empirically running `ward bench run` against a real dataset.
+    """
+    return path.replace("\\", "/")
+
+
 def _locations_overlap(a: SourceLocation, b: SourceLocation) -> bool:
-    if a.path != b.path:
+    if _normalized_path(a.path) != _normalized_path(b.path):
         return False
     a_end = a.end_line if a.end_line is not None else a.start_line
     b_end = b.end_line if b.end_line is not None else b.start_line

@@ -67,6 +67,17 @@ class TestMatchFindings:
         result = match_findings([finding], [_truth(path="app.py")])
         assert result.false_positives == ("f1",)
 
+    def test_backslash_and_forward_slash_paths_still_match(self, make_finding: MakeFinding) -> None:
+        # A scanner emits OS-native paths (backslash-separated on Windows,
+        # via str(Path(...))); a dataset's ground truth is authored once and
+        # versioned in JSON, using the portable forward-slash convention
+        # regardless of which OS a benchmark run executes on. Confirmed as a
+        # real bug empirically: `ward bench run` matched nothing at all on
+        # Windows before this normalization existed.
+        finding = make_finding(finding_id="f1", path="examples\\app.py", start_line=10)
+        result = match_findings([finding], [_truth(path="examples/app.py")])
+        assert result.true_positives == (("f1", "truth-1"),)
+
     def test_overlapping_multiline_location_matches(self, make_finding: MakeFinding) -> None:
         finding = make_finding(finding_id="f1", path="app.py", start_line=8, end_line=12)
         result = match_findings([finding], [_truth(start_line=10)])

@@ -174,9 +174,38 @@ Built before advanced agents so every later feature is measured
   yet). `mcnemar_test` — the continuity-corrected chi-square test for matched binary "detected /
   not" outcomes between two configurations, using an exact closed-form chi-square(1) CDF
   (`math.erf`) rather than adding a `scipy` dependency for one special case.
-- ⏳ A versioned **golden dataset** with contamination controls (memorized/post-cutoff/mutated/
-  novel splits) and the `ward bench run/compare/report` harness contract itself — these need the
-  dataset-sourcing and CLI-surface decisions the MPS defers to this phase, not yet made.
+- ✅ **A versioned golden dataset** (`cortexward-eval/datasets/golden/v1`, `novel` split): 10
+  hand-authored examples (8 vulnerable — command injection, SQL injection, hard-coded credentials,
+  insecure deserialization, weak crypto, SSRF, template injection, JWT signature bypass — plus 2
+  true negatives), each with ground truth matched exactly to real scanner output (`ward scan`
+  against this exact dataset, verified empirically before the manifest was written, the same
+  "run the real tool first, write ground truth from what it actually reports" discipline this
+  project already holds every scanner adapter to). `cortexward.eval.dataset` (`Dataset`,
+  `DatasetExample`, `load_dataset`) is the loader; the "authored/novel" category is the one MPS §4.1
+  source that needs no external download, network access, or dataset-sourcing decision — SARD/
+  Juliet and CVEfixes integration, and the memorized/post-cutoff/mutated splits, remain genuinely
+  unbuilt (see Phase 9).
+- ✅ **`ward bench run/compare/report`** (`cortexward.cli.bench`): the harness contract MPS §20.1
+  names. `bench run <dataset-manifest> --output FILE` runs every registered scanner (the
+  "Static-only" baseline MPS §3 itself defines, no LLM — matching `ward baseline`'s own
+  no-LLM-by-default design) via `cortexward.eval.harness.run_bench()`, writing a `RunManifest` plus
+  a `.matches.json` sidecar of per-example detection outcomes (needed for McNemar's test, since
+  `RunManifest` itself only ever carries aggregate metrics per evaluation-framework.md §5's
+  documented shape — `cortexward.eval` still depends on nothing but its own domain-model
+  dependency; the harness's own import-linter isolation contract needed no loosening after all,
+  since scanning stays the CLI's job and `run_bench()` only ever consumes already-produced
+  `Finding`s). `bench compare <a> <b>` reports metric deltas plus McNemar's test on matched
+  per-example outcomes when both runs' sidecars share example ids. `bench report <manifest>
+  [--format md,json]` renders Markdown and/or JSON. A real cross-platform bug surfaced and fixed
+  along the way: `cortexward.eval.metrics._locations_overlap` compared `SourceLocation.path`
+  strings verbatim, so a portable (forward-slash) dataset path silently matched nothing at all
+  against a scanner-emitted, OS-native (backslash-on-Windows) path — confirmed empirically running
+  `ward bench run` against the real golden dataset before the fix (precision/recall both 0.0),
+  fixed by normalizing both sides to forward-slash before comparing. 100%-covered.
+- ⏳ Contamination-controlled splits (memorized/post-cutoff/mutated) remain genuinely blocked: a
+  "mutated" split needs vulnerability-preserving mutation operators, which the MPS's own Open
+  Questions (§30) name as an unresolved research question ("Mutation operators that are provably
+  vulnerability-preserving"), not a decision this project can infer or invent unilaterally.
 
 ## Phase 4 — Agent framework 🚧
 Orchestrator (behind `OrchestratorPort`; LangGraph adapter) and agents (Planner, Scanner,

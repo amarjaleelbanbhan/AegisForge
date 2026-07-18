@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import json
 import runpy
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -455,6 +456,261 @@ class TestThreatModelCommand:
     def test_nonexistent_path_is_rejected(self) -> None:
         result = runner.invoke(app, ["threat-model", "/definitely/does/not/exist"])
         assert result.exit_code != 0
+
+
+def _write_bench_dataset(tmp_path: Path) -> Path:
+    """A tiny, self-contained dataset: one real vulnerable example, one
+    true-negative example, ground truth matching real Bandit output
+    exactly (empirically verified the same way the shipped golden dataset
+    under packages/cortexward-eval/datasets/golden/v1 was)."""
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    (examples_dir / "vuln.py").write_text(
+        "import subprocess\ndef run(cmd):\n    subprocess.call(cmd, shell=True)\n",
+        encoding="utf-8",
+    )
+    (examples_dir / "clean.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "name": "cli-test-dataset",
+                "version": "v1",
+                "split": "novel",
+                "examples": [
+                    {
+                        "id": "vuln",
+                        "path": "examples/vuln.py",
+                        "ground_truth": [
+                            {
+                                "id": "vuln-import",
+                                "location": {"path": "examples/vuln.py", "start_line": 1},
+                                "cwe": 78,
+                            },
+                            {
+                                "id": "vuln-shell-true",
+                                "location": {"path": "examples/vuln.py", "start_line": 3},
+                                "cwe": 78,
+                            },
+                        ],
+                    },
+                    {"id": "clean", "path": "examples/clean.py", "ground_truth": []},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
+class TestBenchRunCommand:
+    def test_writes_a_run_manifest_with_perfect_metrics(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        output_path = tmp_path / "run.json"
+        result = runner.invoke(
+            app, ["bench", "run", str(manifest_path), "--output", str(output_path)]
+        )
+        assert result.exit_code == 0, result.output
+        document = json.loads(output_path.read_text())
+        assert document["metrics"]["precision"] == 1.0
+        assert document["metrics"]["recall"] == 1.0
+        assert document["dataset"] == {"name": "cli-test-dataset", "version": "v1"}
+
+    def test_writes_a_companion_matches_file(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        output_path = tmp_path / "run.json"
+        result = runner.invoke(
+            app, ["bench", "run", str(manifest_path), "--output", str(output_path)]
+        )
+        assert result.exit_code == 0, result.output
+        matches_path = tmp_path / "run.json.matches.json"
+        assert matches_path.exists()
+        assert json.loads(matches_path.read_text()) == {"vuln": True}
+
+    def test_nonexistent_dataset_manifest_is_rejected(self, tmp_path: Path) -> None:
+        result = runner.invoke(
+            app, ["bench", "run", str(tmp_path / "nope.json"), "--output", str(tmp_path / "o.json")]
+        )
+        assert result.exit_code != 0
+
+    def test_git_sha_unknown_when_git_is_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Only stubs `_git_sha`'s own call, not `subprocess.run` globally —
+        # a global stub would also break the real Bandit/Semgrep subprocess
+        # calls this test's scan step depends on.
+        real_run = subprocess.run
+
+        def _selective_run(argv: list[str], **kwargs: object) -> object:
+            if argv and argv[0] == "git":
+                raise FileNotFoundError("git not found")
+            return real_run(argv, **kwargs)  # type: ignore[call-overload]
+
+        monkeypatch.setattr("cortexward.cli.bench.subprocess.run", _selective_run)
+        manifest_path = _write_bench_dataset(tmp_path)
+        output_path = tmp_path / "run.json"
+        result = runner.invoke(
+            app, ["bench", "run", str(manifest_path), "--output", str(output_path)]
+        )
+        assert result.exit_code == 0, result.output
+        document = json.loads(output_path.read_text())
+        assert document["git_sha"] == "unknown"
+
+
+class TestBenchReportCommand:
+    def test_default_markdown_report_to_stdout(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_path = tmp_path / "run.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_path)])
+        result = runner.invoke(app, ["bench", "report", str(run_path)])
+        assert result.exit_code == 0
+        assert "# Benchmark report" in result.output
+        assert "| Precision | 1.000 |" in result.output
+
+    def test_json_format(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_path = tmp_path / "run.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_path)])
+        result = runner.invoke(app, ["bench", "report", str(run_path), "--format", "json"])
+        assert result.exit_code == 0
+        document = json.loads(result.output)
+        assert document["metrics"]["precision"] == 1.0
+
+    def test_writes_to_an_output_file(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_path = tmp_path / "run.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_path)])
+        report_path = tmp_path / "report.md"
+        result = runner.invoke(
+            app, ["bench", "report", str(run_path), "--output", str(report_path)]
+        )
+        assert result.exit_code == 0
+        assert "# Benchmark report" in report_path.read_text()
+
+    def test_invalid_format_is_rejected(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_path = tmp_path / "run.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_path)])
+        result = runner.invoke(app, ["bench", "report", str(run_path), "--format", "yaml"])
+        assert result.exit_code != 0
+
+    def test_multiple_formats_to_stdout_are_each_labeled(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_path = tmp_path / "run.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_path)])
+        result = runner.invoke(app, ["bench", "report", str(run_path), "--format", "md,json"])
+        assert result.exit_code == 0
+        assert "=== md ===" in result.output
+        assert "=== json ===" in result.output
+
+    def test_multiple_formats_to_output_write_one_file_per_format(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_path = tmp_path / "run.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_path)])
+        output_path = tmp_path / "report.out"
+        result = runner.invoke(
+            app,
+            ["bench", "report", str(run_path), "--format", "md,json", "--output", str(output_path)],
+        )
+        assert result.exit_code == 0
+        assert output_path.with_suffix(".md").exists()
+        assert output_path.with_suffix(".json").exists()
+
+
+class TestBenchCompareCommand:
+    def test_compares_two_runs_of_the_same_dataset(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_a = tmp_path / "run_a.json"
+        run_b = tmp_path / "run_b.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_a)])
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_b)])
+        result = runner.invoke(app, ["bench", "compare", str(run_a), str(run_b)])
+        assert result.exit_code == 0
+        assert "precision" in result.output
+        assert "McNemar" in result.output
+        assert "0 discordant" in result.output
+
+    def test_nonexistent_manifest_is_rejected(self, tmp_path: Path) -> None:
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_a = tmp_path / "run_a.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_a)])
+        result = runner.invoke(app, ["bench", "compare", str(run_a), str(tmp_path / "no.json")])
+        assert result.exit_code != 0
+
+    def test_missing_companion_matches_files_skips_mcnemar(self, tmp_path: Path) -> None:
+        # A hand-written RunManifest with no `.matches.json` sidecar (as if
+        # produced some other way than `ward bench run`) -- comparison
+        # still works on the aggregate metrics, just without McNemar.
+        bare_manifest = json.dumps(
+            {
+                "run_id": "bench_bare",
+                "git_sha": "deadbeef",
+                "config_hash": "cfg",
+                "calibration_profile": "static-default@1",
+                "dataset": {"name": "bare", "version": "v1"},
+                "runtime": {"started": "2026-01-01T00:00:00Z", "wall_seconds": 1.0},
+                "hardware": {"cpu": "test", "os": "test"},
+                "metrics": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "fpr": 0.0, "fnr": 0.0},
+            }
+        )
+        run_a = tmp_path / "bare_a.json"
+        run_b = tmp_path / "bare_b.json"
+        run_a.write_text(bare_manifest, encoding="utf-8")
+        run_b.write_text(bare_manifest, encoding="utf-8")
+        result = runner.invoke(app, ["bench", "compare", str(run_a), str(run_b)])
+        assert result.exit_code == 0
+        assert "precision" in result.output
+        assert "McNemar" not in result.output
+
+    def test_no_shared_example_ids_skips_mcnemar(self, tmp_path: Path) -> None:
+        # Two runs' matches.json sidecars both exist, but cover disjoint
+        # example ids (e.g. two different datasets) -- nothing to pair.
+        manifest_path = _write_bench_dataset(tmp_path)
+        run_a = tmp_path / "run_a.json"
+        runner.invoke(app, ["bench", "run", str(manifest_path), "--output", str(run_a)])
+
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+        (other_dir / "examples").mkdir()
+        (other_dir / "examples" / "vuln2.py").write_text(
+            "import subprocess\ndef run(cmd):\n    subprocess.call(cmd, shell=True)\n",
+            encoding="utf-8",
+        )
+        other_manifest = other_dir / "manifest.json"
+        other_manifest.write_text(
+            json.dumps(
+                {
+                    "name": "other-dataset",
+                    "version": "v1",
+                    "split": "novel",
+                    "examples": [
+                        {
+                            "id": "different-id",
+                            "path": "examples/vuln2.py",
+                            "ground_truth": [
+                                {
+                                    "id": "vuln2-import",
+                                    "location": {"path": "examples/vuln2.py", "start_line": 1},
+                                    "cwe": 78,
+                                },
+                                {
+                                    "id": "vuln2-shell-true",
+                                    "location": {"path": "examples/vuln2.py", "start_line": 3},
+                                    "cwe": 78,
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        run_b = tmp_path / "run_b.json"
+        runner.invoke(app, ["bench", "run", str(other_manifest), "--output", str(run_b)])
+
+        result = runner.invoke(app, ["bench", "compare", str(run_a), str(run_b)])
+        assert result.exit_code == 0
+        assert "McNemar" not in result.output
 
 
 class TestServeCommand:

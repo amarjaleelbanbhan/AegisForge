@@ -375,6 +375,7 @@ version = "0.1.0.dev0"
 source = { editable = "packages/cortexward-cli" }
 dependencies = [
     { name = "cortexward-core" },
+    { name = "cortexward-eval" },
     { name = "cortexward-llm" },
     { name = "cortexward-orchestrator" },
     { name = "cortexward-reporters" },
@@ -386,6 +387,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cortexward-core", editable = "packages/cortexward-core" },
+    { name = "cortexward-eval", editable = "packages/cortexward-eval" },
     { name = "cortexward-llm", editable = "packages/cortexward-llm" },
     { name = "cortexward-orchestrator", editable = "packages/cortexward-orchestrator" },
     { name = "cortexward-reporters", editable = "packages/cortexward-reporters" },

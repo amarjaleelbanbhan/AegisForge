@@ -51,6 +51,12 @@ src = [
   "packages/cortexward-storage/src", "packages/cortexward-storage/tests",
   "packages/cortexward-sandbox/src", "packages/cortexward-sandbox/tests",
 ]
+# The golden benchmark dataset's examples are deliberately vulnerable (and
+# deliberately clean) *data*, not application source — linting them as if
+# they needed this project's own house style/security rules would be
+# self-defeating (the vulnerable ones exist specifically to trip a real
+# scanner; ruff flagging the same issue isn't a bug in the dataset).
+extend-exclude = ["packages/cortexward-eval/datasets/**"]
 
 [tool.ruff.lint]
 select = [
@@ -98,6 +104,10 @@ warn_redundant_casts = true
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
 explicit_package_bases = true
+# Golden-dataset fixtures are deliberately-vulnerable/untyped benchmark DATA
+# (ward bench ground truth), not application source code — same reasoning as
+# the ruff extend-exclude for this path.
+exclude = ["^packages/cortexward-eval/datasets/"]
 mypy_path = [
   "packages/cortexward-core/src",
   "packages/cortexward-cpg/src",
@@ -297,12 +307,14 @@ forbidden_modules = [
   "cortexward.sdk",
 ]
 
-# cortexward.eval currently only needs cortexward.domain (Finding,
-# SourceLocation) for the RunManifest and matcher/metrics primitives. The
-# harness's future "ward bench run" command will need to invoke scanners
-# and reporters directly to produce results to measure — this contract is
-# expected to loosen (drop cortexward.scanners/cortexward.reporters) when
-# that orchestration lands, not a permanent restriction.
+# cortexward.eval only needs cortexward.domain (Finding, SourceLocation) for
+# the RunManifest, dataset, and matcher/metrics/harness primitives. `ward
+# bench run` (cortexward-cli) does its own scanning via
+# cortexward.orchestrator and passes the resulting Findings into
+# cortexward.eval.harness.run_bench() as plain data -- this contract turned
+# out not to need loosening at all once that command actually landed; the
+# scanning orchestration belongs to the delivery surface calling in, not to
+# the harness being called.
 [[tool.importlinter.contracts]]
 name = "Evaluation harness does not depend on other adapters or interfaces"
 type = "forbidden"

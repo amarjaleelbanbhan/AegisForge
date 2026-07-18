@@ -1,0 +1,125 @@
+{
+  "name": "cortexward-golden",
+  "version": "v1",
+  "split": "novel",
+  "examples": [
+    {
+      "id": "command_injection",
+      "path": "examples/command_injection.py",
+      "ground_truth": [
+        {
+          "id": "command_injection-import",
+          "location": { "path": "examples/command_injection.py", "start_line": 6 },
+          "cwe": 78
+        },
+        {
+          "id": "command_injection-shell-true",
+          "location": { "path": "examples/command_injection.py", "start_line": 10 },
+          "cwe": 78
+        }
+      ]
+    },
+    {
+      "id": "sql_injection",
+      "path": "examples/sql_injection.py",
+      "ground_truth": [
+        {
+          "id": "sql_injection-string-format",
+          "location": { "path": "examples/sql_injection.py", "start_line": 8 },
+          "cwe": 89
+        }
+      ]
+    },
+    {
+      "id": "hardcoded_credential",
+      "path": "examples/hardcoded_credential.py",
+      "ground_truth": [
+        {
+          "id": "hardcoded_credential-bandit-cwe259",
+          "location": { "path": "examples/hardcoded_credential.py", "start_line": 6 },
+          "cwe": 259
+        },
+        {
+          "id": "hardcoded_credential-detect-secrets-cwe798",
+          "location": { "path": "examples/hardcoded_credential.py", "start_line": 6 },
+          "cwe": 798
+        }
+      ]
+    },
+    {
+      "id": "insecure_deserialization",
+      "path": "examples/insecure_deserialization.py",
+      "ground_truth": [
+        {
+          "id": "insecure_deserialization-import",
+          "location": { "path": "examples/insecure_deserialization.py", "start_line": 6 },
+          "cwe": 502
+        },
+        {
+          "id": "insecure_deserialization-pickle-loads",
+          "location": { "path": "examples/insecure_deserialization.py", "start_line": 10 },
+          "cwe": 502
+        }
+      ]
+    },
+    {
+      "id": "weak_crypto",
+      "path": "examples/weak_crypto.py",
+      "ground_truth": [
+        {
+          "id": "weak_crypto-md5",
+          "location": { "path": "examples/weak_crypto.py", "start_line": 10 },
+          "cwe": 327
+        }
+      ]
+    },
+    {
+      "id": "ssrf",
+      "path": "examples/ssrf.py",
+      "ground_truth": [
+        {
+          "id": "ssrf-taint",
+          "location": { "path": "examples/ssrf.py", "start_line": 13 },
+          "cwe": 918
+        },
+        {
+          "id": "ssrf-missing-timeout",
+          "location": { "path": "examples/ssrf.py", "start_line": 13 },
+          "cwe": 400
+        }
+      ]
+    },
+    {
+      "id": "template_injection",
+      "path": "examples/template_injection.py",
+      "ground_truth": [
+        {
+          "id": "template_injection-taint",
+          "location": { "path": "examples/template_injection.py", "start_line": 12 },
+          "cwe": 79
+        }
+      ]
+    },
+    {
+      "id": "jwt_bypass",
+      "path": "examples/jwt_bypass.py",
+      "ground_truth": [
+        {
+          "id": "jwt_bypass-verify-signature-false",
+          "location": { "path": "examples/jwt_bypass.py", "start_line": 11 },
+          "cwe": 347
+        }
+      ]
+    },
+    {
+      "id": "safe_query",
+      "path": "examples/safe_query.py",
+      "ground_truth": []
+    },
+    {
+      "id": "safe_subprocess",
+      "path": "examples/safe_subprocess.py",
+      "ground_truth": []
+    }
+  ]
+}

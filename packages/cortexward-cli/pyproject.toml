@@ -8,7 +8,10 @@
 # cortexward-agents; the CLI only knows about OrchestratorPort. `ward serve`
 # needs cortexward-server (so `uvicorn.run("cortexward.server.app:app", ...)`
 # resolves) and uvicorn itself; both are hard dependencies, not an optional
-# extra, so `ward serve` genuinely works out of the box.
+# extra, so `ward serve` genuinely works out of the box. `ward bench` needs
+# cortexward-eval (Dataset/RunManifest/run_bench) -- this is the one place
+# a delivery surface depends on the evaluation harness, matching how
+# cortexward-eval's own import-linter contract note anticipated it.
 [build-system]
 requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
@@ -35,6 +38,7 @@ classifiers = [
 
 dependencies = [
   "cortexward-core",
+  "cortexward-eval",
   "cortexward-llm",
   "cortexward-orchestrator",
   "cortexward-reporters",
@@ -52,6 +56,7 @@ ward = "cortexward.cli.main:main"
 
 [tool.uv.sources]
 cortexward-core = { workspace = true }
+cortexward-eval = { workspace = true }
 cortexward-llm = { workspace = true }
 cortexward-orchestrator = { workspace = true }
 cortexward-reporters = { workspace = true }

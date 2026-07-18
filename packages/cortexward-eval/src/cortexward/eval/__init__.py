@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cortexward.eval.dataset import Dataset, DatasetExample, load_dataset
+from cortexward.eval.harness import run_bench
 from cortexward.eval.manifest import (
     CostInfo,
     DatasetRef,
@@ -32,6 +34,8 @@ from cortexward.eval.statistics import (
 __all__ = [
     "ConfidenceInterval",
     "CostInfo",
+    "Dataset",
+    "DatasetExample",
     "DatasetRef",
     "DetectionMetrics",
     "GroundTruthFinding",
@@ -46,8 +50,10 @@ __all__ = [
     "f1_score",
     "false_negative_rate",
     "false_positive_rate",
+    "load_dataset",
     "match_findings",
     "mcnemar_test",
     "precision",
     "recall",
+    "run_bench",
 ]

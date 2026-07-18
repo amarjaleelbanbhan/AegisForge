@@ -143,6 +143,24 @@ All notable changes to CortexWard are documented here. The format is based on
   `list_findings(run_id)` reads a finding's detected-run identity from `Finding.provenance.run_id`
   rather than adding a redundant column. Registered under `cortexward.storage` as `sqlite`.
   100%-covered.
+- **`ward bench run/compare/report`** (`cortexward-cli`) plus a versioned golden dataset
+  (`cortexward-eval/datasets/golden/v1`, MPS §4.1's "novel" split): the evaluation harness
+  contract MPS §20.1 names. `bench run <dataset-manifest> --output FILE` scans every registered
+  scanner over the dataset via `cortexward.eval.harness.run_bench()` (new `cortexward.eval.dataset`
+  loader), writing a `RunManifest` plus a `.matches.json` sidecar of per-example detection
+  outcomes (kept out of `RunManifest` itself, which only ever carries aggregate metrics per
+  evaluation-framework.md §5's documented shape). `bench compare <a> <b>` reports metric deltas
+  plus McNemar's test when both runs' sidecars share example ids. `bench report <manifest>
+  [--format md,json]` renders Markdown/JSON. The golden dataset's 10 examples (8 vulnerable, 2
+  true-negative) each have ground truth transcribed from a real `ward scan` run against the exact
+  fixture, not hand-guessed — verified end-to-end with a perfect precision=1.000/recall=1.000/
+  f1=1.000 `ward bench run`. Fixed a real cross-platform bug along the way:
+  `cortexward.eval.metrics._locations_overlap` compared `SourceLocation.path` strings verbatim, so
+  a portable (forward-slash) dataset path never matched a scanner-emitted, OS-native
+  (backslash-on-Windows) path, silently zeroing every metric on Windows. Contamination-controlled
+  splits (memorized/post-cutoff/mutated) remain unbuilt — a "mutated" split needs
+  vulnerability-preserving mutation operators, which the MPS's own Open Questions (§30) name as
+  unresolved. 100%-covered.
 - **Trust-boundary modeling** (`Threat.crosses_trust_boundary`, MPS Phase 5): MPS §22.1's
   untrusted-zone/trusted-control-plane split, generalized from describing CortexWard's own
   architecture to an analyzed target's — a known entry point stands in for that target's untrusted

@@ -34,6 +34,7 @@ import typer
 import uvicorn
 
 from cortexward.cli.baseline import filter_baseline, load_baseline, write_baseline
+from cortexward.cli.bench import bench_app
 from cortexward.domain import Severity
 from cortexward.llm import LLMConfigError, LLMProviderConfig, Provider, load_llm_config
 from cortexward.orchestrator import build_pipeline, build_threat_model_for
@@ -58,6 +59,9 @@ def _callback() -> None:
     its one command can be invoked without naming it — this app is
     expected to grow more subcommands as later phases land.
     """
+
+
+app.add_typer(bench_app, name="bench")
 
 
 _FAIL_ON_CHOICES = ("none", "low", "medium", "high", "critical")
