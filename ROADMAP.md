@@ -390,13 +390,19 @@ PoC artifacts, and VEX output.
   cortexward-authored Dockerfile, running that image instead of `spec.image` directly; produced
   artifacts are streamed back out via `docker cp` after the container runs — never a `-v <host
   path>:...` bind mount, which the port's own `no host mounts` requirement rules out literally,
-  not just in spirit. Both the build-based bundle delivery and the named-volume output mount are
-  corrections, not the original design: the original streamed the bundle into an already-created
-  container via `docker cp -` (Docker unconditionally refuses to copy *into* any read-only-marked
-  container, regardless of destination path) and used a tmpfs for `/output` (torn down before
-  retrieval could ever succeed) — both errors only a real Docker daemon could surface, and this
-  project's own dev environment has none reachable; both were caught by GitHub Actions' real
-  runners once pushed. `ExecutionSpec` gained an `image` field (default `python:3.11-slim`, this
+  not just in spirit. The synthetic Dockerfile also pre-creates `/output` and `chown`s it to
+  `1000:1000` at build time — a freshly-populated named volume inherits the image's ownership at
+  that mount point (documented Docker behavior), which is what actually makes `/output` writable
+  by the unprivileged container user; without it the volume is root-owned and the same container
+  that could write to `/tmp` gets `PermissionError` writing to `/output`. The build-based bundle
+  delivery, the named-volume output mount, and the ownership fix are all corrections, not the
+  original design: the original streamed the bundle into an already-created container via `docker
+  cp -` (Docker unconditionally refuses to copy *into* any read-only-marked container, regardless
+  of destination path), used a tmpfs for `/output` (torn down before retrieval could ever succeed),
+  and didn't account for a fresh named volume's default root ownership — three errors only a real
+  Docker daemon could surface, and this project's own dev environment has none reachable; all three
+  were caught by GitHub Actions' real runners, one per push. `ExecutionSpec` gained an
+  `image` field (default `python:3.11-slim`, this
   project's own primary supported language) — the port previously had no way to say what to run a
   command inside at all.
   - **Not live-verified in this environment**: this environment's `docker` CLI is installed, but

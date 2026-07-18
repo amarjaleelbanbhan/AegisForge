@@ -113,6 +113,14 @@ All notable changes to CortexWard are documented here. The format is based on
   has already finished. Fixed by mounting `/output` as a named Docker volume instead (still no
   host mount — a named volume is opaque, daemon-managed storage), which survives independently of
   the container's own lifecycle; the volume is now also removed in the cleanup `finally` block.
+- **Fixed a third real bug the same CI daemon caught immediately after the second fix landed:**
+  a freshly-created named Docker volume is root-owned by default, so the unprivileged `1000:1000`
+  container user got `PermissionError` writing to `/output` even after the tmpfs-vs-volume fix
+  above — `/tmp` worked fine (tmpfs mounts default to world-writable `mode=1777`), `/output`
+  didn't. Fixed by having the synthetic Dockerfile pre-create `/output` and `chown 1000:1000` it at
+  build time: Docker copies an image's existing directory ownership into a named volume the first
+  time it's populated at that mount point, which is what actually makes the volume writable by the
+  container's own user.
 - **`LangGraphOrchestrator`** (`cortexward-orchestrator`): the LangGraph-backed `OrchestratorPort`
   adapter ADR-0002 named as its reference ("LangGraph is one adapter behind that port"). Runs the
   exact same `Agent` sequence `AgentOrchestrator` does, as a `langgraph.graph.StateGraph` instead

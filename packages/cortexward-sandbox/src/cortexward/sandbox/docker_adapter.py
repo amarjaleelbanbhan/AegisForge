@@ -86,6 +86,8 @@ from cortexward.ports import EgressPolicy, ExecutionResult, ExecutionSpec, Resou
 
 _WORKSPACE_PATH = "/workspace"
 _OUTPUT_PATH = "/output"
+_CONTAINER_UID_GID = "1000:1000"
+"""The unprivileged user every container runs as (`--user`, MPS §22.4)."""
 _DOCKERFILE_PATH = ".cortexward-build/Dockerfile"
 """Reserved path within the synthetic build-context tar (see `_build_context_tar`)."""
 
@@ -184,7 +186,7 @@ def build_create_argv(
         "--cap-drop",
         "ALL",
         "--user",
-        "1000:1000",
+        _CONTAINER_UID_GID,
         "--workdir",
         _WORKSPACE_PATH,
     ]
@@ -209,7 +211,19 @@ def _build_context_tar(image: str, bundle: bytes) -> bytes:
     access — a build runs before the container's deny-egress policy ever
     applies to anything.
     """
-    dockerfile = f"FROM {image}\nCOPY . {_WORKSPACE_PATH}\nWORKDIR {_WORKSPACE_PATH}\n".encode()
+    dockerfile = (
+        f"FROM {image}\n"
+        f"COPY . {_WORKSPACE_PATH}\n"
+        # A freshly-created named volume's mount point inherits the
+        # ownership/permissions of whatever already exists at that path in
+        # the image, the first time it's populated (documented Docker
+        # behavior) -- this is what actually makes /output writable by the
+        # unprivileged container user; without it, a fresh named volume is
+        # root-owned and --user 1000:1000 gets "Permission denied" trying
+        # to write into it, confirmed empirically against a real daemon.
+        f"RUN mkdir -p {_OUTPUT_PATH} && chown {_CONTAINER_UID_GID} {_OUTPUT_PATH}\n"
+        f"WORKDIR {_WORKSPACE_PATH}\n"
+    ).encode()
     output = BytesIO()
     with tarfile.open(fileobj=output, mode="w") as out_tar:
         info = tarfile.TarInfo(name=_DOCKERFILE_PATH)

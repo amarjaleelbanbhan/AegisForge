@@ -423,12 +423,18 @@ storage, never a real host directory; the input bundle is delivered by *building
 ephemeral image (`docker build -`, a tar stream over the daemon API) layering the bundle onto
 `spec.image` via a synthetic Dockerfile, running that image instead of `spec.image` directly;
 produced artifacts are streamed back out via `docker cp` — never a `-v <host path>:...` bind
-mount. Both the build-based bundle delivery and the named-volume output mount are corrections: the
-original design streamed the bundle into an already-created container via `docker cp -` (Docker
-unconditionally refuses to copy *into* any read-only-marked container) and used a tmpfs for
-`/output` (torn down before retrieval could succeed) — both errors this project's own dev
-environment (no reachable Docker daemon) couldn't have surfaced; both only appeared once exercised
-against GitHub Actions' real runners. `ExecutionSpec` gained an `image` field (default
+mount. The synthetic Dockerfile also pre-creates `/output` and `chown`s it to the container's own
+`1000:1000` user at build time, since a freshly-populated named volume otherwise inherits root
+ownership (documented Docker behavior: a volume's mount point inherits the image's ownership at
+that path the first time it's populated) — without it, the unprivileged container user gets
+`PermissionError` writing to `/output` despite `/tmp` working fine. The build-based bundle
+delivery, the named-volume output mount, and the ownership fix are all corrections: the original
+design streamed the bundle into an already-created container via `docker cp -` (Docker
+unconditionally refuses to copy *into* any read-only-marked container), used a tmpfs for `/output`
+(torn down before retrieval could succeed), and didn't account for a fresh volume's default root
+ownership — three errors this project's own dev environment (no reachable Docker daemon) couldn't
+have surfaced; all three only appeared once exercised against GitHub Actions' real runners, one
+per push. `ExecutionSpec` gained an `image` field (default
 `python:3.11-slim`) the port previously had no way to express at all. Not live-verified in this
 environment: the `docker` CLI is installed but
 its daemon is unreachable (confirmed via `docker info`'s connection error) — deterministic tests

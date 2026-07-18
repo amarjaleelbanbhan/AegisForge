@@ -251,6 +251,19 @@ class TestBuildContextTar:
         assert "COPY . /workspace" in content
         assert "WORKDIR /workspace" in content
 
+    def test_dockerfile_pre_creates_output_owned_by_the_container_user(self) -> None:
+        # A freshly-populated named volume inherits the image's ownership at
+        # that mount point -- without this, /output is root-owned and the
+        # unprivileged container user gets "Permission denied" writing to
+        # it, confirmed empirically against a real daemon.
+        context = _build_context_tar("python:3.11-slim", _tar_bytes({}))
+        with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
+            dockerfile = tar.extractfile(_DOCKERFILE_PATH)
+            assert dockerfile is not None
+            content = dockerfile.read().decode("utf-8")
+        assert "mkdir -p /output" in content
+        assert "chown 1000:1000 /output" in content
+
     def test_bundle_files_are_merged_into_the_context(self) -> None:
         context = _build_context_tar("python:3.11-slim", _tar_bytes({"hello.txt": "world"}))
         with tarfile.open(fileobj=io.BytesIO(context), mode="r") as tar:
@@ -565,6 +578,16 @@ class TestLiveDocker:
         result = adapter.execute(spec)
         assert result.exit_code == 0
         assert "pong" in result.stdout
+
+    def test_the_tmp_scratch_area_is_writable_by_the_unprivileged_user(self) -> None:
+        store = _InMemoryArtifactStore()
+        bundle_ref = store.put_artifact(_tar_bytes({}))
+        adapter = DockerSandboxAdapter(store)
+        script = "import pathlib; pathlib.Path('/tmp/scratch.txt').write_text('ok'); print('WROTE')"
+        spec = _spec(command=("python3", "-c", script), bundle_ref=bundle_ref)
+        result = adapter.execute(spec)
+        assert result.exit_code == 0, result.stderr
+        assert "WROTE" in result.stdout
         assert result.timed_out is False
 
     def test_network_egress_is_denied_by_default(self) -> None:
@@ -595,11 +618,12 @@ class TestLiveDocker:
         store = _InMemoryArtifactStore()
         bundle_ref = store.put_artifact(_tar_bytes({}))
         adapter = DockerSandboxAdapter(store)
-        # /output already exists as the --tmpfs mount point, so the command
-        # only needs to write into it, not create it.
+        # /output already exists as the named-volume mount point, so the
+        # command only needs to write into it, not create it.
         script = "import pathlib; pathlib.Path('/output/poc.txt').write_text('evidence')"
         spec = _spec(command=("python3", "-c", script), bundle_ref=bundle_ref)
         result = adapter.execute(spec)
+        assert result.exit_code == 0, result.stderr
         assert len(result.artifact_refs) == 1
         assert store.get_artifact(result.artifact_refs[0]) == b"evidence"
 

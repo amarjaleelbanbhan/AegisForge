@@ -28,7 +28,13 @@ line to the exact flags/behavior implementing it:
   mounts are torn down the instant a container stops, before this adapter ever gets to `docker cp`
   the produced files back out — confirmed empirically (a real container wrote to `/output` and
   exited 0, yet retrieval always came back empty). A named volume is daemon-managed storage
-  independent of any one container's lifecycle, so it survives exactly as long as needed.
+  independent of any one container's lifecycle, so it survives exactly as long as needed. A fresh
+  named volume is root-owned by default, which the synthetic Dockerfile (below) works around by
+  pre-creating `/output` with `chown 1000:1000` at build time — Docker copies an image's existing
+  directory ownership into a volume the first time it's populated at that mount point, which is
+  what actually makes `/output` writable by the unprivileged container user (confirmed
+  empirically: without this, the same container that could write to `/tmp` got a `PermissionError`
+  writing to `/output`).
 - Ephemeral: every container is uniquely named and removed (`docker rm -f`) in a `finally` block;
   the ephemeral image built to deliver the input bundle (below) and the named output volume are
   likewise removed (`docker rmi -f` / `docker volume rm -f`).
