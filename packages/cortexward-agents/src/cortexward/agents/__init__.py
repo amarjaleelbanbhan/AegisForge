@@ -17,6 +17,7 @@ from cortexward.agents.memory_agent import MemoryAgent
 from cortexward.agents.orchestrator import AgentOrchestrator, default_agents
 from cortexward.agents.patch_gates import apply_and_rescan
 from cortexward.agents.planner import PlannerAgent
+from cortexward.agents.poc import POC_SUPPORTED_CWES, ArtifactSink, PocAgent
 from cortexward.agents.prompt_loader import (
     MissingPromptInputError,
     PromptNotFoundError,
@@ -35,15 +36,18 @@ from cortexward.agents.tools import ToolExecutionError, ToolFunction, run_tool_l
 from cortexward.agents.verifier import VerifierAgent
 
 __all__ = [
+    "POC_SUPPORTED_CWES",
     "Agent",
     "AgentOrchestrator",
     "AllAdaptersFailedError",
+    "ArtifactSink",
     "CoordinatorAgent",
     "GlobalKnowledge",
     "InMemoryRepositoryMemory",
     "MemoryAgent",
     "MissingPromptInputError",
     "PlannerAgent",
+    "PocAgent",
     "PromptNotFoundError",
     "PromptTemplate",
     "RepairAgent",
