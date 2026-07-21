@@ -6,6 +6,28 @@ All notable changes to CortexWard are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **`PocAgent` — dynamic exploit verification (Verification Ladder rung 3).** The agent that closes
+  the detect → verify → *exploit* loop. For an exploitable finding (OS command injection, CWE-78, to
+  start) it asks the model for a proof-of-concept, runs that PoC inside the isolated `SandboxPort`,
+  and attaches supporting `EXPLOIT_POC` evidence at the `DYNAMIC_POC` rung **only** when the exploit
+  demonstrably triggers — a fresh, unguessable per-finding marker, which the model is told to make
+  `echo` only as a side effect of the vulnerable code executing, appears in the sandbox's output.
+  That marker's unpredictability is what stops normal (or maliciously crafted) target output from
+  faking a success. Rung 3 is `>= TAINT_CONFIRMED`, so a successful PoC is the first evidence strong
+  enough to carry a finding to `VERIFIED` on its own — which is what finally gives `RepairAgent`
+  (verified-findings-only) something to patch, closing a loop that was previously open. Wired into
+  `default_agents` between Verifier and Repair, strictly opt-in: present only when a `sandbox`, an
+  artifact store, and the target `root` are all supplied, otherwise the pipeline is byte-for-byte
+  unchanged. One-directional like every other signal here — a PoC that runs without triggering, an
+  unparseable response, a path that escapes the target root, or any sandbox infra failure/timeout
+  attaches *nothing*, never a false refutation (a failed PoC usually means a weak exploit, not safe
+  code). The LLM-authored PoC is treated as untrusted and only ever executed inside the sandbox,
+  never on the host. 100 %-covered by deterministic tests (fake sandbox + scripted model); PoC
+  *generation* additionally live-verified against a real `qwen2.5-coder:7b` server (which, as it
+  turns out, returns a bare ```python code block with no `POC:` prefix — the response parser was made
+  robust to exactly that real-world shape).
+
 ### Fixed
 - **Inconsistent line endings across the whole repository.** No `.gitattributes` ever existed,
   so every file's line ending was whatever the committing machine's editor/tool happened to use
