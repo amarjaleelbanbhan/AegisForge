@@ -43,6 +43,7 @@ dependencies = [
   "cortexward-orchestrator",
   "cortexward-reporters",
   "cortexward-server",
+  "rich>=13.8.0",
   "typer>=0.12,<1",
   "uvicorn[standard]>=0.51.0,<1",
 ]

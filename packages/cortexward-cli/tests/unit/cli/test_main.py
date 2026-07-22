@@ -8,6 +8,7 @@ consistent with this codebase's preference for real integration tests.
 from __future__ import annotations
 
 import importlib
+import io
 import json
 import runpy
 import shutil
@@ -19,11 +20,20 @@ from pathlib import Path
 from urllib.error import URLError
 
 import pytest
+import typer
 import uvicorn
+from rich.console import Console
 from typer.testing import CliRunner
 
 from cortexward.cli import app, main
-from cortexward.domain import FindingState, VerificationRung
+from cortexward.domain import (
+    Finding,
+    FindingState,
+    Provenance,
+    Severity,
+    SourceLocation,
+    VerificationRung,
+)
 from cortexward.llm import LLMProviderConfig, Provider
 from cortexward.orchestrator import SequentialOrchestrator
 
@@ -205,6 +215,176 @@ class TestReportFormat:
         _write_clean_file(tmp_path)
         result = runner.invoke(app, ["scan", str(tmp_path), "--format", "not-a-real-format"])
         assert result.exit_code != 0
+
+
+def _high_finding() -> Finding:
+    return Finding(
+        rule_id="B602",
+        title="t",
+        message="subprocess with shell=True",
+        cwe=78,
+        severity=Severity.HIGH,
+        locations=(SourceLocation(path="app.py", start_line=5),),
+        provenance=Provenance(producer="bandit"),
+    )
+
+
+class _FakeResult:
+    def __init__(self, findings: tuple[Finding, ...]) -> None:
+        self.findings = findings
+        self.patches: tuple[object, ...] = ()
+
+
+class _FakeOrchestrator:
+    def __init__(self, findings: tuple[Finding, ...]) -> None:
+        self._findings = findings
+
+    def run(self, request: object) -> _FakeResult:
+        return _FakeResult(self._findings)
+
+
+def _patch_pipeline(monkeypatch: pytest.MonkeyPatch, findings: tuple[Finding, ...] = ()) -> None:
+    """Swap build_pipeline for a fake returning `findings` — no real scanning."""
+    monkeypatch.setattr(
+        _cli_main_module, "build_pipeline", lambda **_kwargs: _FakeOrchestrator(findings)
+    )
+    monkeypatch.setattr(_cli_main_module, "_registered_scanner_count", lambda: 4)
+
+
+class TestHumanFormat:
+    def test_human_format_renders_a_table(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_pipeline(monkeypatch, (_high_finding(),))
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--format", "human", "--fail-on", "none"]
+        )
+        assert result.exit_code == 0
+        assert "HIGH" in result.stdout
+        assert "app.py:5" in result.stdout
+        assert "1 total" in result.stdout
+
+    def test_human_format_clean_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_pipeline(monkeypatch, ())
+        result = runner.invoke(app, ["scan", str(tmp_path), "--format", "human"])
+        assert result.exit_code == 0
+        assert "no findings" in result.stdout.lower()
+
+    def test_invalid_format_is_rejected_with_a_clear_message(self, tmp_path: Path) -> None:
+        _write_clean_file(tmp_path)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--format", "bogus"])
+        assert result.exit_code != 0
+        assert "invalid --format" in result.output
+
+    def test_auto_resolves_to_sarif_when_output_given(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_pipeline(monkeypatch, (_high_finding(),))
+        out = tmp_path / "r.sarif"
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--output", str(out), "--fail-on", "none"]
+        )
+        assert result.exit_code == 0
+        assert json.loads(out.read_text())["version"] == "2.1.0"
+
+    def test_auto_resolves_to_human_in_a_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_cli_main_module.sys.stdout, "isatty", lambda: True)
+        assert _cli_main_module._resolve_output_format("auto", output=None) == "human"
+
+    def test_auto_resolves_to_sarif_without_a_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(_cli_main_module.sys.stdout, "isatty", lambda: False)
+        assert _cli_main_module._resolve_output_format("auto", output=None) == "sarif"
+
+
+class TestDecoratedOutput:
+    """Force the decorated (terminal) branch and capture the styled stderr."""
+
+    def _force_decoration(self, monkeypatch: pytest.MonkeyPatch) -> io.StringIO:
+        buffer = io.StringIO()
+        monkeypatch.setattr(_cli_main_module.ui, "should_decorate", lambda: True)
+        monkeypatch.setattr(
+            _cli_main_module.ui,
+            "err_console",
+            Console(
+                file=buffer, force_terminal=True, highlight=False, theme=_cli_main_module.ui._THEME
+            ),
+        )
+        return buffer
+
+    def test_scan_prints_a_header_and_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        buffer = self._force_decoration(monkeypatch)
+        _patch_pipeline(monkeypatch, (_high_finding(),))
+        # sarif to stdout (machine), decorated header/summary to the captured stderr
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--format", "sarif", "--fail-on", "none"]
+        )
+        assert result.exit_code == 0
+        styled = buffer.getvalue()
+        assert "scanning" in styled
+        assert "1 high" in styled
+
+    def test_scan_saved_message_when_output_given(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        buffer = self._force_decoration(monkeypatch)
+        _patch_pipeline(monkeypatch, (_high_finding(),))
+        out = tmp_path / "r.sarif"
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--format", "sarif", "-o", str(out), "--fail-on", "none"]
+        )
+        assert result.exit_code == 0
+        assert "Wrote 1 finding(s)" in buffer.getvalue()
+
+    def test_quiet_suppresses_decoration(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        buffer = self._force_decoration(monkeypatch)
+        _patch_pipeline(monkeypatch, (_high_finding(),))
+        result = runner.invoke(
+            app, ["scan", str(tmp_path), "--format", "sarif", "--quiet", "--fail-on", "none"]
+        )
+        assert result.exit_code == 0
+        assert buffer.getvalue() == ""  # --quiet turned the header/summary off
+
+    def test_baseline_shows_a_status_and_confirmation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        buffer = self._force_decoration(monkeypatch)
+        _patch_pipeline(monkeypatch, (_high_finding(),))
+        out = tmp_path / "baseline.json"
+        result = runner.invoke(app, ["baseline", str(tmp_path), "--output", str(out)])
+        assert result.exit_code == 0
+        assert "recorded in baseline" in buffer.getvalue()
+
+    def test_serve_prints_a_startup_line(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        buffer = self._force_decoration(monkeypatch)
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+        result = runner.invoke(app, ["serve", "--host", "127.0.0.1", "--port", "9000"])
+        assert result.exit_code == 0
+        assert "127.0.0.1:9000" in buffer.getvalue()
+
+    def test_decorated_scan_with_no_findings(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        buffer = self._force_decoration(monkeypatch)
+        _patch_pipeline(monkeypatch, ())  # no findings
+        result = runner.invoke(app, ["scan", str(tmp_path), "--format", "sarif"])
+        assert result.exit_code == 0
+        # header shown, but no severity summary line since there's nothing to summarize
+        assert "scanning" in buffer.getvalue()
+
+
+def test_registered_scanner_count_is_positive() -> None:
+    assert _cli_main_module._registered_scanner_count() >= 1
+
+
+def test_resolve_reporter_rejects_an_unknown_registered_format() -> None:
+    with pytest.raises(typer.BadParameter):
+        _cli_main_module._resolve_reporter("definitely-not-registered")
 
 
 class TestLlmVerification:
