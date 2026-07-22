@@ -95,6 +95,13 @@ class ArtifactSink(Protocol):
     def put_artifact(self, content: bytes) -> str: ...
 
 
+@runtime_checkable
+class ArtifactStore(ArtifactSink, Protocol):
+    """`ArtifactSink` plus read-back — what Gate D needs to fetch a stored PoC."""
+
+    def get_artifact(self, ref: str) -> bytes: ...
+
+
 # A markdown code block: ```lang\n...``` — closing fence optional (matched to
 # end of string) since models occasionally omit it.
 _FENCE = re.compile(r"```[a-zA-Z0-9_+-]*\n(.*?)(?:```|\Z)", re.DOTALL)
@@ -186,24 +193,29 @@ class PocAgent:
         if poc_code is None:
             return None
 
-        bundle = _bundle(location.path, source, poc_code)
-        ref = self._artifacts.put_artifact(bundle)
-        try:
-            outcome = self._sandbox.execute(
-                ExecutionSpec(command=("python", _POC_FILENAME), input_bundle_ref=ref)
-            )
-        except Exception:
+        triggered = run_poc_in_sandbox(
+            relative=location.path,
+            source=source,
+            poc_code=poc_code,
+            marker=marker,
+            sandbox=self._sandbox,
+            artifacts=self._artifacts,
+        )
+        if triggered is not True:
+            # None (infra failure/timeout) or False (ran, no trigger) are both
+            # "no positive proof" -- one-directional, never a refutation.
             return None
-        if outcome.timed_out:
-            return None
-        if marker not in outcome.stdout and marker not in outcome.stderr:
-            return None
+        # Stash the exact PoC + marker so Gate D can re-run *this* exploit
+        # against the patched code (MPS §16, "original PoC neutralized").
+        poc_ref = self._artifacts.put_artifact(poc_code.encode("utf-8"))
         return Evidence(
             kind=EvidenceKind.EXPLOIT_POC,
             rung=VerificationRung.DYNAMIC_POC,
             supports=True,
             summary="proof-of-concept executed in the sandbox; injected marker observed in output",
             provenance=Provenance(producer=self.name, model=self._llm.model_id),
+            artifact_ref=poc_ref,
+            data={"poc_marker": marker, "poc_path": location.path},
         )
 
     def _read_source(self, relative: str) -> str | None:
@@ -220,6 +232,38 @@ class PocAgent:
         if not candidate.is_relative_to(root) or not candidate.is_file():
             return None
         return candidate.read_text(encoding="utf-8", errors="replace")
+
+
+def run_poc_in_sandbox(
+    *,
+    relative: str,
+    source: str,
+    poc_code: str,
+    marker: str,
+    sandbox: SandboxPort,
+    artifacts: ArtifactSink,
+) -> bool | None:
+    """Bundle `{source at relative + poc.py}`, run `poc.py` in the sandbox, and
+    report whether the exploit triggered.
+
+    Returns `True` if `marker` appeared in the sandbox's stdout/stderr (the
+    exploit fired), `False` if the PoC ran to completion without it (ran, did
+    not trigger), or `None` if the run was inconclusive — a sandbox
+    infrastructure failure (e.g. no Docker daemon) or a timeout, neither of
+    which is evidence either way. Shared by `PocAgent` (positive proof on
+    `True`) and Gate D (`False` on the *patched* code means neutralized).
+    """
+    bundle = _bundle(relative, source, poc_code)
+    ref = artifacts.put_artifact(bundle)
+    try:
+        outcome = sandbox.execute(
+            ExecutionSpec(command=("python", _POC_FILENAME), input_bundle_ref=ref)
+        )
+    except Exception:
+        return None
+    if outcome.timed_out:
+        return None
+    return marker in outcome.stdout or marker in outcome.stderr
 
 
 def _bundle(relative: str, source: str, poc_code: str) -> bytes:
@@ -241,4 +285,10 @@ def _bundle(relative: str, source: str, poc_code: str) -> bytes:
     return buffer.getvalue()
 
 
-__all__ = ["POC_SUPPORTED_CWES", "ArtifactSink", "PocAgent"]
+__all__ = [
+    "POC_SUPPORTED_CWES",
+    "ArtifactSink",
+    "ArtifactStore",
+    "PocAgent",
+    "run_poc_in_sandbox",
+]

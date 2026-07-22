@@ -91,6 +91,9 @@ class _DictArtifacts:
         self.store[ref] = content
         return ref
 
+    def get_artifact(self, ref: str) -> bytes:
+        return self.store[ref]
+
 
 def _result(*, stdout: str = "", stderr: str = "", timed_out: bool = False) -> ExecutionResult:
     return ExecutionResult(
@@ -145,6 +148,18 @@ def _state(root: Path, finding: Finding) -> RunState:
     return RunState(request=AnalysisRequest(root=root)).with_findings((finding,))
 
 
+def _bundle_artifact(artifacts: _DictArtifacts) -> bytes:
+    """The tar bundle among stored artifacts (the PoC script is stored too)."""
+    for content in artifacts.store.values():
+        try:
+            with tarfile.open(fileobj=io.BytesIO(content), mode="r") as tar:
+                if "poc.py" in tar.getnames():
+                    return content
+        except tarfile.TarError:
+            continue
+    raise AssertionError("no PoC bundle found in artifacts")
+
+
 class TestPocAgent:
     def test_name_is_poc(self, tmp_path: Path) -> None:
         assert _agent(tmp_path, llm=_ScriptedLLM([]), sandbox=_FakeSandbox()).name == "poc"
@@ -162,6 +177,10 @@ class TestPocAgent:
         assert evidence.provenance.producer == "poc"
         assert evidence.provenance.model == "fake-model"
         assert finding.state == FindingState.VERIFIED
+        # The exact PoC + marker are stashed for Gate D to re-run this exploit.
+        assert evidence.artifact_ref is not None
+        assert evidence.data["poc_marker"] == _MARKER
+        assert evidence.data["poc_path"] == "vuln.py"
 
     def test_marker_in_stderr_also_counts(self, tmp_path: Path) -> None:
         llm = _ScriptedLLM([_poc_response()])
@@ -278,8 +297,7 @@ class TestPocAgent:
         artifacts = _DictArtifacts()
         agent = _agent(tmp_path, llm=llm, sandbox=sandbox, artifacts=artifacts)
         agent.run(_state(tmp_path, _finding(root=tmp_path)))
-        (ref,) = artifacts.store
-        with tarfile.open(fileobj=io.BytesIO(artifacts.store[ref]), mode="r") as tar:
+        with tarfile.open(fileobj=io.BytesIO(_bundle_artifact(artifacts)), mode="r") as tar:
             names = tar.getnames()
             assert "vuln.py" in names
             assert "poc.py" in names
@@ -415,8 +433,7 @@ class TestLivePocGeneration:
 
         # A PoC was generated, parsed, and bundled for the sandbox.
         assert len(sandbox.specs) == 1
-        (ref,) = artifacts.store
-        with tarfile.open(fileobj=io.BytesIO(artifacts.store[ref]), mode="r") as tar:
+        with tarfile.open(fileobj=io.BytesIO(_bundle_artifact(artifacts)), mode="r") as tar:
             assert set(tar.getnames()) == {"vuln.py", "poc.py"}
             poc_member = tar.extractfile("poc.py")
             assert poc_member is not None
