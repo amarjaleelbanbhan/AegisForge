@@ -26,9 +26,11 @@
 <br>
 
 > **Status: Pre-alpha, but real.** Every command below actually runs — `ward scan` executes a
-> real multi-scanner pipeline today, not a roadmap promise. Phases 0–4 (foundation, workspace,
-> Code Property Graph, scanners, the full agent framework) are complete. See
-> [**§ Roadmap**](#roadmap) for the exact phase-by-phase state, and
+> real multi-scanner + agent pipeline today, not a roadmap promise. The **core verification loop is
+> closed**: `ward scan --llm-provider ollama --sandbox` detects a finding, generates a
+> proof-of-concept, **runs it in an isolated Docker sandbox**, and — only if the exploit actually
+> fires — climbs to the `DYNAMIC_POC` rung and `VERIFIED`, then generates a patch and puts it through
+> four validation gates. See [**§ Roadmap**](#roadmap) for the exact phase-by-phase state, and
 > [ROADMAP.md](ROADMAP.md) for the full breakdown with evidence for every line.
 >
 > 📐 **Single source of truth:** the [Master Project Specification v1.0](docs/specifications/MPS-v1.0.md)
@@ -145,13 +147,18 @@ uv run ward scan . -o results.sarif      # write SARIF to a file instead
 uv run ward scan . --fail-on critical    # only exit non-zero on critical findings
 uv run ward scan . --format cyclonedx-vex  # render exploitability as CycloneDX-VEX instead
 uv run ward scan . --llm-provider ollama --llm-model qwen2.5-coder:7b  # agent-driven verification
+uv run ward scan . --llm-provider ollama --sandbox  # + dynamic exploit verification (needs Docker)
 ```
 
 `ward scan` auto-discovers every installed scanner (`cortexward.scanners` entry points), runs
 each one, correlates findings by CWE + location into the domain `Finding` model, and renders
 the result — real, working code. With `--llm-provider`, findings carry real LLM verification
 and CPG-grounded reachability evidence instead, and `--engine langgraph` swaps in the
-LangGraph-backed orchestrator for the identical agent pipeline.
+LangGraph-backed orchestrator for the identical agent pipeline. Add `--sandbox` (with a running
+Docker daemon) to close the loop: CortexWard generates a proof-of-concept, executes it in an
+isolated container, and promotes a finding to `DYNAMIC_POC` / `VERIFIED` only if the exploit
+genuinely fires — then validates any patch against all four gates (applies · tests pass · rescan
+clean · original PoC neutralized).
 
 More of the CLI:
 
@@ -259,9 +266,16 @@ missing infrastructure, or an open research question).
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md), our
-[Code of Conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md). Research ideas and open
+Contributions are welcome — CortexWard is built to be extended, and most capabilities are plugin
+adapters behind clean ports. Start with [CONTRIBUTING.md](CONTRIBUTING.md) (setup, workflow, and
+where to jump in), our [Code of Conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md).
+Have a question or idea? See [SUPPORT.md](SUPPORT.md) and
+[Discussions](https://github.com/amarjaleelbanbhan/CortexWard/discussions). Research ideas and open
 questions live in [`research/`](research/).
+
+**High-impact areas to contribute:** a new `ScannerPort` or `ReporterPort` adapter · live-testing
+the Anthropic/Gemini LLM adapters · **cross-file taint** (the CPG's biggest lever, [ROADMAP.md](ROADMAP.md)
+Milestone 1) · widening PoC verification to another CWE class · docs and examples.
 
 ## 📄 License
 
