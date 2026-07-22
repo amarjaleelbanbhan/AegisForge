@@ -17,7 +17,7 @@ from cortexward.agents.coordinator import CoordinatorAgent
 from cortexward.agents.memory import InMemoryRepositoryMemory, RepositoryMemory
 from cortexward.agents.memory_agent import MemoryAgent
 from cortexward.agents.planner import PlannerAgent
-from cortexward.agents.poc import ArtifactSink, PocAgent
+from cortexward.agents.poc import ArtifactStore, PocAgent
 from cortexward.agents.protocol import Agent
 from cortexward.agents.repair import RepairAgent
 from cortexward.agents.reviewer import ReviewerAgent
@@ -56,7 +56,7 @@ def default_agents(
     repository_memory: RepositoryMemory | None = None,
     code_graphs: Mapping[str, CodeGraph] | None = None,
     sandbox: SandboxPort | None = None,
-    artifacts: ArtifactSink | None = None,
+    artifacts: ArtifactStore | None = None,
     root: Path | None = None,
 ) -> tuple[Agent, ...]:
     """The standard Planner -> Scanner -> Verifier -> [PoC] -> Repair -> Reviewer -> Memory ->
@@ -92,7 +92,9 @@ def default_agents(
     pipeline.extend(
         (
             RepairAgent(llm=llm),
-            ReviewerAgent(llm=llm, scanners=scanners),
+            # sandbox/artifacts are None when --sandbox is off, which turns Gate
+            # B/D into no-ops there (Gate A/C via scanners run either way).
+            ReviewerAgent(llm=llm, scanners=scanners, sandbox=sandbox, artifacts=artifacts),
             MemoryAgent(repository_memory=memory),
             CoordinatorAgent(llm=llm),
         )

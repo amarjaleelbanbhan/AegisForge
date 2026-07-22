@@ -2,13 +2,29 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from cortexward.agents import ReviewerAgent, RunState
-from cortexward.domain import Finding, Patch, Provenance, SourceLocation
-from cortexward.ports import AnalysisRequest, CompletionRequest, CompletionResult, TokenUsage
+from cortexward.domain import (
+    Evidence,
+    EvidenceKind,
+    Finding,
+    Patch,
+    Provenance,
+    SourceLocation,
+    VerificationRung,
+)
+from cortexward.ports import (
+    AnalysisRequest,
+    CompletionRequest,
+    CompletionResult,
+    ExecutionResult,
+    ExecutionSpec,
+    TokenUsage,
+)
 from cortexward.scanners import BanditScanner
 
 pytestmark = pytest.mark.unit
@@ -334,3 +350,170 @@ class TestRescanGate:
         result = agent.run(state)
         assert result.patches[0].rescan_clean is True
         assert result.notes_from("reviewer")[0].startswith(f"{patch.id}: NEEDS_CHANGES")
+
+
+_POC_MARKER = "CORTEXWARD_POC_reviewer"
+
+
+class _DictStore:
+    def __init__(self) -> None:
+        self.store: dict[str, bytes] = {}
+
+    def put_artifact(self, content: bytes) -> str:
+        ref = f"sha256:{hashlib.sha256(content).hexdigest()}"
+        self.store[ref] = content
+        return ref
+
+    def get_artifact(self, ref: str) -> bytes:
+        return self.store[ref]
+
+
+class _FakeSandbox:
+    """Returns a pytest result for a pytest command, else a PoC result."""
+
+    isolation_tier = "fake"
+
+    def __init__(self, *, pytest_exit: int = 0, poc_stdout: str = "") -> None:
+        self._pytest_exit = pytest_exit
+        self._poc_stdout = poc_stdout
+        self.specs: list[ExecutionSpec] = []
+
+    def execute(self, spec: ExecutionSpec) -> ExecutionResult:
+        self.specs.append(spec)
+        if "pytest" in spec.command:
+            return ExecutionResult(
+                exit_code=self._pytest_exit,
+                stdout="",
+                stderr="",
+                timed_out=False,
+                duration_seconds=0.1,
+            )
+        return ExecutionResult(
+            exit_code=0, stdout=self._poc_stdout, stderr="", timed_out=False, duration_seconds=0.1
+        )
+
+
+def _bandit_finding_with_poc(store: _DictStore) -> Finding:
+    poc_ref = store.put_artifact(b"import importlib.util  # scripted poc\n")
+    return Finding(
+        rule_id="B602",
+        title="bandit: B602",
+        message="shell=True is dangerous",
+        cwe=78,
+        locations=(SourceLocation(path="app.py", start_line=5),),
+        evidence=(
+            Evidence(
+                kind=EvidenceKind.EXPLOIT_POC,
+                rung=VerificationRung.DYNAMIC_POC,
+                supports=True,
+                summary="poc fired",
+                provenance=Provenance(producer="poc"),
+                artifact_ref=poc_ref,
+                data={"poc_marker": _POC_MARKER, "poc_path": "app.py"},
+            ),
+        ),
+        provenance=Provenance(producer="bandit"),
+    )
+
+
+class TestSandboxGates:
+    """`sandbox`+`artifacts` given -> Gate B (tests) and Gate D (PoC) also run."""
+
+    def test_all_gates_passing_validates_the_patch(self, tmp_path: Path) -> None:
+        # The full loop: real Bandit rescan (Gate C) on a fixing patch, plus a
+        # sandbox where the tests pass (Gate B) and the PoC no longer triggers
+        # (Gate D) -> every gate green -> Patch.is_validated is True.
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        store = _DictStore()
+        finding = _bandit_finding_with_poc(store)
+        patch = _fixing_patch(finding.id)
+        sandbox = _FakeSandbox(pytest_exit=0, poc_stdout="no marker: neutralized")
+        agent = ReviewerAgent(
+            llm=_ScriptedLLM(["REVIEW: APPROVE - fixed"]),
+            scanners=(BanditScanner(),),
+            sandbox=sandbox,
+            artifacts=store,
+        )
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        gated = result.patches[0]
+        assert gated.rescan_clean is True
+        assert gated.tests_pass is True
+        assert gated.exploit_neutralized is True
+        assert gated.is_validated is True
+
+    def test_failing_tests_and_still_exploitable_are_recorded(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        store = _DictStore()
+        finding = _bandit_finding_with_poc(store)
+        patch = _fixing_patch(finding.id)
+        # Tests fail (exit 1); the PoC still triggers (marker present).
+        sandbox = _FakeSandbox(pytest_exit=1, poc_stdout=f"pwned {_POC_MARKER}")
+        agent = ReviewerAgent(
+            llm=_ScriptedLLM(["REVIEW: REJECT - broken"]),
+            scanners=(BanditScanner(),),
+            sandbox=sandbox,
+            artifacts=store,
+        )
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path, languages=("python",)))
+            .with_findings((finding,))
+            .with_patches((patch,))
+        )
+        result = agent.run(state)
+        gated = result.patches[0]
+        assert gated.tests_pass is False
+        assert gated.exploit_neutralized is False
+        assert gated.is_validated is False
+
+    def test_inconclusive_sandbox_gates_leave_fields_unset(self, tmp_path: Path) -> None:
+        # A patch that doesn't apply makes both sandbox gates inconclusive, so
+        # neither tests_pass nor exploit_neutralized is set.
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        store = _DictStore()
+        finding = _bandit_finding_with_poc(store)
+        bad_patch = Patch(
+            finding_id=finding.id,
+            diff="--- a/app.py\n+++ b/app.py\n@@ -1,1 +1,1 @@\n-nope\n+fixed\n",
+            description="bad diff",
+            files_changed=("app.py",),
+            provenance=Provenance(producer="repair"),
+        )
+        sandbox = _FakeSandbox(pytest_exit=0, poc_stdout="")
+        agent = ReviewerAgent(
+            llm=_ScriptedLLM(["REVIEW: NEEDS_CHANGES - won't apply"]),
+            sandbox=sandbox,
+            artifacts=store,
+        )
+        state = (
+            RunState(request=AnalysisRequest(root=tmp_path))
+            .with_findings((finding,))
+            .with_patches((bad_patch,))
+        )
+        result = agent.run(state)
+        gated = result.patches[0]
+        assert gated.tests_pass is None
+        assert gated.exploit_neutralized is None
+        assert sandbox.specs == []  # neither gate reached the sandbox
+
+    def test_sandbox_without_a_finding_runs_gate_b_only(self, tmp_path: Path) -> None:
+        # A patch whose finding isn't in this run: Gate B (no finding needed)
+        # runs; Gate D (needs the finding's PoC) is skipped.
+        (tmp_path / "app.py").write_text(_VULNERABLE_SOURCE, encoding="utf-8")
+        store = _DictStore()
+        patch = _fixing_patch("no-such-finding-id")
+        sandbox = _FakeSandbox(pytest_exit=0)
+        agent = ReviewerAgent(
+            llm=_ScriptedLLM(["REVIEW: APPROVE - fine"]),
+            sandbox=sandbox,
+            artifacts=store,
+        )
+        state = RunState(request=AnalysisRequest(root=tmp_path)).with_patches((patch,))
+        result = agent.run(state)
+        gated = result.patches[0]
+        assert gated.tests_pass is True
+        assert gated.exploit_neutralized is None
