@@ -228,7 +228,7 @@ discovered via entry points, so you can add one without touching the core.
   highest-impact area).
 - 📚 **Docs, examples, a getting-started tutorial.**
 
-**Good first issues:** `[TODO: create "good first issue" labels on GitHub and link them here]`
+**Good first issues:** [open `good first issue`s](https://github.com/amarjaleelbanbhan/CortexWard/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) · [`help wanted`](https://github.com/amarjaleelbanbhan/CortexWard/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
 **Get started:**
 ```bash
