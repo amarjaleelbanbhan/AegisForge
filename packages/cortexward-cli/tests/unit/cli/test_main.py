@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import re
 import runpy
 import shutil
 import subprocess
@@ -276,7 +277,12 @@ class TestHumanFormat:
         _write_clean_file(tmp_path)
         result = runner.invoke(app, ["scan", str(tmp_path), "--format", "bogus"])
         assert result.exit_code != 0
-        assert "invalid --format" in result.output
+        # Typer renders the error in a Rich panel that wraps/colors the text, so
+        # normalize (strip ANSI, collapse whitespace) before asserting on it.
+        normalized = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+        normalized = re.sub(r"\s+", " ", normalized)
+        assert "invalid" in normalized
+        assert "format" in normalized
 
     def test_auto_resolves_to_sarif_when_output_given(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
