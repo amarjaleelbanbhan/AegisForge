@@ -33,7 +33,9 @@ dependencies = [
   "cortexward-agents",
   "cortexward-core",
   "cortexward-llm",
+  "cortexward-sandbox",
   "cortexward-scanners",
+  "cortexward-storage",
   "langgraph>=1.0,<2",
 ]
 
@@ -45,7 +47,9 @@ Repository = "https://github.com/amarjaleelbanbhan/CortexWard"
 cortexward-agents = { workspace = true }
 cortexward-core = { workspace = true }
 cortexward-llm = { workspace = true }
+cortexward-sandbox = { workspace = true }
 cortexward-scanners = { workspace = true }
+cortexward-storage = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cortexward"]

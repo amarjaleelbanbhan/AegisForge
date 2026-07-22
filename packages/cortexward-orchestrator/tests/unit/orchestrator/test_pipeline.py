@@ -54,3 +54,22 @@ class TestBuildPipeline:
     def test_engine_is_ignored_without_an_llm_config(self, tmp_path: Path) -> None:
         orchestrator = build_pipeline(llm_config=None, root=tmp_path, engine="langgraph")
         assert isinstance(orchestrator, SequentialOrchestrator)
+
+    def test_sandbox_true_inserts_the_poc_agent(self, tmp_path: Path) -> None:
+        # Constructing the sandbox adapter needs no running Docker daemon
+        # (the daemon is only touched when a PoC actually executes), so this
+        # is a plain deterministic check that the wiring is present.
+        config = LLMProviderConfig(provider=Provider.OLLAMA, model="qwen2.5-coder:7b")
+        orchestrator = build_pipeline(llm_config=config, root=tmp_path, sandbox=True)
+        assert isinstance(orchestrator, AgentOrchestrator)
+        assert "poc" in [agent.name for agent in orchestrator._agents]
+
+    def test_sandbox_false_omits_the_poc_agent(self, tmp_path: Path) -> None:
+        config = LLMProviderConfig(provider=Provider.OLLAMA, model="qwen2.5-coder:7b")
+        orchestrator = build_pipeline(llm_config=config, root=tmp_path, sandbox=False)
+        assert isinstance(orchestrator, AgentOrchestrator)
+        assert "poc" not in [agent.name for agent in orchestrator._agents]
+
+    def test_sandbox_is_ignored_without_an_llm_config(self, tmp_path: Path) -> None:
+        orchestrator = build_pipeline(llm_config=None, root=tmp_path, sandbox=True)
+        assert isinstance(orchestrator, SequentialOrchestrator)

@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import json
 import runpy
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -22,6 +23,7 @@ import uvicorn
 from typer.testing import CliRunner
 
 from cortexward.cli import app, main
+from cortexward.domain import FindingState, VerificationRung
 from cortexward.llm import LLMProviderConfig, Provider
 from cortexward.orchestrator import SequentialOrchestrator
 
@@ -48,6 +50,30 @@ def _ollama_is_running() -> bool:
             return True
     except (URLError, TimeoutError, OSError):
         return False
+
+
+_DOCKER = shutil.which("docker")
+
+
+def _docker_daemon_reachable() -> bool:
+    if _DOCKER is None:
+        return False
+    try:
+        result = subprocess.run(  # noqa: S603 # nosec B603
+            [_DOCKER, "info"], capture_output=True, timeout=5, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+# A single-file, command-injectable target (CWE-78): tainted input concatenated
+# into a shell=True command -- the same shape as the golden dataset fixture.
+_COMMAND_INJECTION_SOURCE = (
+    "import subprocess\n\n\n"
+    "def run_backup(target_dir):\n"
+    '    subprocess.call("tar -czf backup.tar.gz " + target_dir, shell=True)\n'
+)
 
 
 def _write_vulnerable_file(tmp_path: Path) -> None:
@@ -308,6 +334,36 @@ class TestLlmVerification:
         assert result.exit_code == 0
         assert captured["engine"] == "langgraph"
 
+    def test_default_sandbox_is_false(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_clean_file(tmp_path)
+        captured: dict[str, object] = {}
+
+        def _fake_build_pipeline(**kwargs: object) -> SequentialOrchestrator:
+            captured.update(kwargs)
+            return SequentialOrchestrator(scanners=())
+
+        monkeypatch.setattr(_cli_main_module, "build_pipeline", _fake_build_pipeline)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--fail-on", "none"])
+        assert result.exit_code == 0
+        assert captured["sandbox"] is False
+
+    def test_sandbox_flag_is_passed_through(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_clean_file(tmp_path)
+        captured: dict[str, object] = {}
+
+        def _fake_build_pipeline(**kwargs: object) -> SequentialOrchestrator:
+            captured.update(kwargs)
+            return SequentialOrchestrator(scanners=())
+
+        monkeypatch.setattr(_cli_main_module, "build_pipeline", _fake_build_pipeline)
+        result = runner.invoke(app, ["scan", str(tmp_path), "--fail-on", "none", "--sandbox"])
+        assert result.exit_code == 0
+        assert captured["sandbox"] is True
+
     @pytest.mark.integration
     @pytest.mark.skipif(not _ollama_is_running(), reason="no local Ollama server reachable")
     def test_llm_provider_ollama_runs_the_agent_pipeline_end_to_end(self, tmp_path: Path) -> None:
@@ -332,6 +388,62 @@ class TestLlmVerification:
         assert result.exit_code == 0
         document = json.loads(result.stdout)
         assert len(document["runs"][0]["results"]) >= 1
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not (_ollama_is_running() and _docker_daemon_reachable()),
+    reason="the full loop needs both a local Ollama server and a reachable Docker daemon",
+)
+class TestLiveFullLoop:
+    """The complete Milestone 0 loop, end to end on real infrastructure:
+    `ward scan --llm-provider ollama --sandbox` on a command-injection fixture
+    generates a PoC, runs it in a real Docker sandbox, and the finding reaches
+    `DYNAMIC_POC` / `VERIFIED` with genuine `EXPLOIT_POC` evidence.
+
+    Skipped unless *both* Ollama and Docker are reachable — neither CI (no
+    Ollama) nor a typical dev box (no Docker) has both, so this runs only where
+    both are installed. Nothing here is mocked.
+    """
+
+    def test_scan_with_sandbox_reaches_dynamic_poc_and_verified(self, tmp_path: Path) -> None:
+        (tmp_path / "vuln.py").write_text(_COMMAND_INJECTION_SOURCE, encoding="utf-8")
+        result = runner.invoke(
+            app,
+            [
+                "scan",
+                str(tmp_path),
+                "--fail-on",
+                "none",
+                "--format",
+                "cortexward-json",
+                "--llm-provider",
+                "ollama",
+                "--llm-model",
+                _LIVE_MODEL,
+                "--sandbox",
+            ],
+        )
+        assert result.exit_code == 0
+        document = json.loads(result.stdout)
+        poc_findings = [
+            finding
+            for finding in document["findings"]
+            if any(
+                evidence["kind"] == "exploit_poc" and evidence["supports"]
+                for evidence in finding["evidence"]
+            )
+        ]
+        assert poc_findings, "expected at least one finding with EXPLOIT_POC evidence"
+        proven = poc_findings[0]
+        # rung is an IntEnum -> JSON dumps it as its int value; comparing against
+        # the enum member works whether it round-trips as int or name.
+        assert any(
+            evidence["rung"] == VerificationRung.DYNAMIC_POC
+            for evidence in proven["evidence"]
+            if evidence["kind"] == "exploit_poc"
+        )
+        assert proven["state"] == FindingState.VERIFIED.value
 
 
 class TestBaselineOption:

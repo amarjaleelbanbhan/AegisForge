@@ -238,6 +238,19 @@ def scan(
             dir_okay=False,
         ),
     ] = None,
+    sandbox: Annotated[
+        bool,
+        typer.Option(
+            "--sandbox/--no-sandbox",
+            help=(
+                "With an LLM provider configured, dynamically verify exploitable findings by "
+                "generating a proof-of-concept and running it in an isolated Docker sandbox "
+                "(Verification Ladder rung DYNAMIC_POC). Requires a running Docker daemon; a "
+                "PoC that can't run is treated as inconclusive, never a false 'safe'. Ignored "
+                "without --llm-provider/--llm-config."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Scan PATH with every registered scanner and report findings."""
     threshold = _severity_threshold(fail_on)
@@ -258,6 +271,7 @@ def scan(
         languages=tuple(language),
         reachability=reachability,
         engine=_resolve_engine(engine),
+        sandbox=sandbox,
     )
     request = AnalysisRequest(root=resolved_root, languages=tuple(language))
     result = orchestrator.run(request)

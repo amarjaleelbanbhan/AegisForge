@@ -464,7 +464,9 @@ dependencies = [
     { name = "cortexward-agents" },
     { name = "cortexward-core" },
     { name = "cortexward-llm" },
+    { name = "cortexward-sandbox" },
     { name = "cortexward-scanners" },
+    { name = "cortexward-storage" },
     { name = "langgraph" },
 ]
 
@@ -473,7 +475,9 @@ requires-dist = [
     { name = "cortexward-agents", editable = "packages/cortexward-agents" },
     { name = "cortexward-core", editable = "packages/cortexward-core" },
     { name = "cortexward-llm", editable = "packages/cortexward-llm" },
+    { name = "cortexward-sandbox", editable = "packages/cortexward-sandbox" },
     { name = "cortexward-scanners", editable = "packages/cortexward-scanners" },
+    { name = "cortexward-storage", editable = "packages/cortexward-storage" },
     { name = "langgraph", specifier = ">=1.0,<2" },
 ]
 
