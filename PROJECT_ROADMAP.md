@@ -47,33 +47,39 @@ The strategic report is context, not truth; verified each claim against the code
 
 ## 4. Milestones (priority order)
 
-### Milestone 0 — Close the core verification loop  🟡 IN PROGRESS
-Detection → Verification → **PoC → Sandbox → `DYNAMIC_POC` evidence** → VERIFIED → Patch → gates → SARIF/VEX.
+### Milestone 0 — Close the core verification loop  🟢 CODE COMPLETE (live loop pending a Docker+Ollama host)
+Detection → Verification → **PoC → Sandbox → `DYNAMIC_POC` evidence** → VERIFIED → Patch → Gate A/B/C/D → SARIF/VEX.
 
 - [x] **`PocAgent`** (`cortexward.agents.poc`): generates a PoC via LLM, runs it in `SandboxPort`,
   attaches supporting `EXPLOIT_POC` evidence at rung `DYNAMIC_POC` **only** on a genuine
   marker-trigger (unguessable per-finding token echoed only as a side effect of the exploit). One
   CWE class first (CWE-78 command injection). One-directional: a non-triggering/failed/infra-error
-  PoC attaches nothing (never a false refutation). Path-escape-guarded bundle. 100 % covered by
-  deterministic tests (fake sandbox + scripted LLM).
+  PoC attaches nothing (never a false refutation). Path-escape-guarded bundle. 100 % covered.
 - [x] **Wired into `default_agents`** between Verifier and Repair, opt-in when `sandbox`+`artifacts`
   +`root` are supplied. A successful PoC → finding `VERIFIED` (rung 3 ≥ TAINT_CONFIRMED) → this is
   what finally gives `RepairAgent` (verified-only) a finding to patch. Byte-for-byte unchanged
   pipeline when the sandbox deps are absent.
-- [x] **Live PoC generation verified** against real `qwen2.5-coder:7b` (`TestLivePocGeneration`): the
-  model produces a well-formed importlib-loading PoC with the injected marker, which parses and
-  bundles correctly. (The generated PoC is deliberately **not** executed on the host — no isolation
-  boundary here; execution is the sandbox's job.)
-- [ ] **CLI wiring** — `ward scan --sandbox` constructs `DockerSandboxAdapter` + an artifact store
-  and threads them through `build_pipeline` so the loop runs from the CLI. ⚠️ *Cannot be live-verified
-  in this environment (no Docker daemon); verifiable only in CI / a Docker host.*
-- [ ] **Full live loop test** (`TestLivePoc`): real Ollama PoC + real Docker execution against a
-  command-injection fixture → asserts genuine `EXPLOIT_POC` evidence + `VERIFIED`. ⚠️ *Needs both
-  Ollama and Docker in one environment — neither CI nor this dev box has both; runs only where both
-  are installed.*
-- [ ] **Gate D + `Patch.is_validated`** — re-run the PoC against the patched copy; set
-  `exploit_neutralized` when it no longer triggers; a patch validates only when A+C+B+D all pass.
-  (Builds directly on `PocAgent` + `apply_and_rescan`.)
+- [x] **Live PoC generation verified** against real `qwen2.5-coder:7b` (`TestLivePocGeneration`).
+- [x] **CLI wiring** — `ward scan --sandbox` constructs a `DockerSandboxAdapter` + a shared
+  `SqliteStoragePort` artifact store (reused, not new code) and threads them through
+  `build_pipeline` → `default_agents`. Opt-in; ignored without `--llm-provider`. 100 % covered
+  (deterministic; adapter construction needs no daemon).
+- [x] **Gate D ("original PoC neutralized")** — `patch_gates.poc_neutralized` re-runs the *exact*
+  PoC `PocAgent` recorded (stored via the `EXPLOIT_POC` evidence's `artifact_ref` + marker) against
+  the patched code; the same PoC no longer triggering is the gate. Not a mere exit-0 check. 100 %
+  covered.
+- [x] **Gate B ("existing tests pass")** — `patch_gates.tests_pass_in_sandbox` runs `python -m
+  pytest` on the patched project in the sandbox; pass/fail from the exit code, inconclusive (never a
+  false pass) when no tests / no pytest in the image / infra failure. 100 % covered.
+- [x] **Both wired into `ReviewerAgent`** alongside Gates A/C, so `Patch.is_validated` becomes `True`
+  only when all four gates pass — verified deterministically (`test_all_gates_passing_validates_the_patch`).
+- [x] **Full end-to-end live test** (`TestLiveFullLoop`, `cortexward-cli`): `ward scan --llm-provider
+  ollama --sandbox` on a command-injection fixture → asserts `EXPLOIT_POC` evidence, `DYNAMIC_POC`
+  rung, `VERIFIED` state. Skip-gated on **both** Ollama and Docker being reachable.
+- [ ] ⚠️ **Live full-loop execution not yet observed green.** The combined path needs one host with
+  *both* Docker and Ollama; CI has Docker-not-Ollama, this dev box has Ollama-and-a-Docker-daemon
+  that was still initializing. The test is written and skips cleanly until both are up. **This is the
+  one remaining Milestone 0 verification, and it is infrastructure-gated, not code-gated.**
 
 ### Milestone 1 — Cross-file Python taint  🔴 NOT STARTED
 Inter-module `CALLS` edges (follow `import`s) + inter-procedural taint in `InMemoryCodeGraph.taint()`.
@@ -131,6 +137,14 @@ otherwise. No coverage-gate lowering.
   wired into `default_agents` (opt-in), 100 % covered (deterministic fake-sandbox tests). Made
   `_parse_poc` robust to real model output (bare ```python fences, no `POC:` prefix) after the first
   live run showed `qwen2.5-coder:7b` returns exactly that. **Live-verified PoC generation** against
-  real Ollama: model emits a correct importlib-loading, marker-injecting PoC that parses + bundles.
-  Remaining Milestone 0 (CLI `--sandbox` wiring, full Docker+Ollama loop test, Gate D) needs a Docker
-  host to verify and is not yet done.
+  real Ollama. Committed + pushed (4 commits), CI green.
+- 2026-07-22 — **Milestone 0 completed in code.** Added `ward scan --sandbox` (reuses
+  `DockerSandboxAdapter` + `SqliteStoragePort`, no new infra code), **Gate D** (`poc_neutralized`,
+  re-runs the exact recorded PoC against patched code) and **Gate B** (`tests_pass_in_sandbox`, runs
+  pytest in the sandbox), both wired into `ReviewerAgent` so `Patch.is_validated` now genuinely
+  requires all four gates. Added the full end-to-end `TestLiveFullLoop` (skip-gated on Ollama+Docker).
+  Extracted a reusable `run_poc_in_sandbox` helper (used by PocAgent and Gate D) and a `_patched_scratch`
+  context manager (shared by rescan and Gate D). Every new module at 100 % deterministic coverage;
+  static gate (ruff/format/imports/mypy ×13) green. Library-first: reused the existing sandbox
+  adapter, storage adapter, git-apply/scratch machinery, and PoC bundling rather than writing new
+  infrastructure. The only unverified piece is the live Docker+Ollama full loop (infra-gated).

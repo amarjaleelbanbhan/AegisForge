@@ -7,6 +7,23 @@ All notable changes to CortexWard are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **`ward scan --sandbox` + all four patch gates — the closed detect→verify→exploit→fix loop.**
+  `--sandbox` (with an LLM provider configured) turns on dynamic exploit verification end to end:
+  `build_pipeline` wires a `DockerSandboxAdapter` and a shared in-memory `SqliteStoragePort` (both
+  reused as-is, no new infrastructure code) through `default_agents`, which runs `PocAgent` and then
+  the sandbox-backed patch gates. **Gate D ("original PoC neutralized")** re-runs the *exact* PoC
+  `PocAgent` proved on the vulnerable code (stored via the `EXPLOIT_POC` evidence's `artifact_ref` +
+  marker) against the patched code — the same exploit no longer triggering is the gate, not a mere
+  exit-0 check. **Gate B ("existing tests pass")** runs `python -m pytest` on the patched project in
+  the sandbox, reading pass/fail from the exit code and treating "no tests / no pytest in the image /
+  infra failure" as inconclusive rather than a false pass. Both are wired into `ReviewerAgent`
+  alongside the existing Gates A/C, so `Patch.is_validated` now genuinely requires all four gates to
+  pass. A reusable `run_poc_in_sandbox` helper (shared by `PocAgent` and Gate D) and a
+  `_patched_scratch` context manager (shared by the rescan gate and Gate D) keep the untrusted-diff
+  and PoC-execution handling in one place. Every gate is one-directional — only a genuine pass/fail
+  sets its field. A full end-to-end integration test (`TestLiveFullLoop`) exercises `ward scan
+  --llm-provider ollama --sandbox` against a command-injection fixture on real Docker + Ollama,
+  skip-gated when either is unavailable. 100 % deterministic coverage throughout.
 - **`PocAgent` — dynamic exploit verification (Verification Ladder rung 3).** The agent that closes
   the detect → verify → *exploit* loop. For an exploitable finding (OS command injection, CWE-78, to
   start) it asks the model for a proof-of-concept, runs that PoC inside the isolated `SandboxPort`,
