@@ -72,7 +72,7 @@ jobs:
           done
 
       - name: Import boundaries (hexagonal architecture)
-        run: uv run lint-imports
+        run: uv run --with import-linter==2.13 lint-imports
 
       - name: Pytest (with coverage gate)
         run: |
