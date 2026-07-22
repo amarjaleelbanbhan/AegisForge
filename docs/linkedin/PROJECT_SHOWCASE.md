@@ -251,12 +251,12 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) and [GOVERNANCE.md](../../GOVERNANC
 
 ## 📸 Assets & links
 
-- **Demo GIF (exists):** [`docs/assets/demo-terminal.gif`](../../docs/assets/demo-terminal.gif) — a real `ward scan .` run.
 - **Repo:** https://github.com/amarjaleelbanbhan/CortexWard
-- **Docs site:** `[ADD LINK — not built yet, Milestone 3]`
-- **PyPI:** `[ADD LINK — not published yet, Milestone 3]`
-- **Architecture diagram image:** `[TODO: export a clean PNG of the hexagonal diagram for LinkedIn]`
-- **PoC-loop GIF:** `[TODO: record ward scan --sandbox reaching DYNAMIC_POC once Docker+Ollama are on one host]`
+- **CLI demo GIF:** [`docs/assets/demo-terminal.gif`](../../docs/assets/demo-terminal.gif) — a real `ward scan .` run with the new terminal UI.
+- **LinkedIn post visuals (ready):** [`docs/linkedin/assets/`](assets/) — five 1200×1200 branded PNGs.
+- **Ladder / architecture card:** [`docs/linkedin/assets/02-technical-deep-dive.png`](assets/02-technical-deep-dive.png).
+- **Docs site & PyPI:** not yet — both are roadmap Milestone 3; the posts point only at the GitHub repo (real).
+- **PoC-loop GIF:** deferred — recording `ward scan --sandbox` reaching `DYNAMIC_POC` needs Docker + Ollama on one host (see [OWNER_ACTIONS.md](../../OWNER_ACTIONS.md)); use `05-feature-spotlight.png` meanwhile.
 
 ## 🙏 Credits
 
