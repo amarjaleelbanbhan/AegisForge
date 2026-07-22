@@ -1,0 +1,42 @@
+name: Documentation issue
+description: Report a problem with the docs — unclear, outdated, incorrect, or missing
+title: "docs: <short description>"
+labels: ["documentation", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the docs. For questions ("how do I…?"), please use
+        [Discussions](https://github.com/amarjaleelbanbhan/CortexWard/discussions) instead.
+  - type: input
+    id: location
+    attributes:
+      label: Where is the problem?
+      description: File path, page, or link (e.g. `README.md § Try it`, `ARCHITECTURE.md`).
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - Incorrect / doesn't match the code
+        - Outdated
+        - Unclear or confusing
+        - Missing (something should be documented but isn't)
+        - Broken link / command that doesn't work
+        - Typo / formatting
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What's wrong, and what would be correct or clearer? Quote the exact text if useful.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix (optional)
+      description: A proposed wording or correction. PRs welcome — see CONTRIBUTING.md.

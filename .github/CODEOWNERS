@@ -1,0 +1,9 @@
+# Code owners for CortexWard.
+# These owners are automatically requested for review on any pull request.
+# See https://docs.github.com/articles/about-code-owners
+#
+# As the project grows, add per-area owners above the catch-all rule, e.g.:
+#   /packages/cortexward-cpg/      @some-cpg-maintainer
+#   /packages/cortexward-sandbox/  @some-sandbox-maintainer
+
+* @amarjaleelbanbhan
