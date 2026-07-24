@@ -32,7 +32,7 @@ dependencies = [
   "cortexward-core",
   "cortexward-llm",
   "cortexward-orchestrator",
-  "fastapi>=0.110,<1",
+  "fastapi>=0.139.2,<1",
 ]
 
 [project.optional-dependencies]

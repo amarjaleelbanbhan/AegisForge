@@ -30,7 +30,7 @@ dependencies = [
   "cortexward-core",
   "bandit>=1.7,<2",
   "detect-secrets>=1.5,<2",
-  "semgrep>=1.70,<2",
+  "semgrep>=1.171.0,<2",
 ]
 
 [project.urls]
